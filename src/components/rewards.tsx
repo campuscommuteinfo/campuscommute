@@ -1,69 +1,113 @@
-
 "use client";
 
 import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Gift, Ticket, ShoppingCart, Star, Utensils } from "lucide-react";
+import { Gift, Ticket, ShoppingCart, Star, Utensils, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot, runTransaction, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, runTransaction, collection, serverTimestamp } from "firebase/firestore";
+import { cn } from "@/lib/utils";
 
 const rewards = [
   {
     title: "₹50 Ride Voucher",
     points: 200,
     brand: "Transport",
-    icon: <Ticket className="size-5 text-primary" />,
-    image: "https://images.unsplash.com/photo-1587135325273-adef4e88bc25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxidXMlMjB0aWNrZXR8ZW58MHx8fHwxNzU0MzkxMjA3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    dataAiHint: "bus ticket",
+    icon: Ticket,
+    color: "from-indigo-500 to-purple-600",
+    image: "https://images.unsplash.com/photo-1587135325273-adef4e88bc25?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
   },
   {
     title: "₹100 Amazon Voucher",
     points: 500,
     brand: "Lifestyle",
-    icon: <ShoppingCart className="size-5 text-blue-500" />,
-    image: "https://images.unsplash.com/photo-1601598505513-7489a6272d2a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxzaG9wcGluZyUyMGNhcnR8ZW58MHx8fHwxNzU0MzkxMjA3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    dataAiHint: "shopping cart",
+    icon: ShoppingCart,
+    color: "from-blue-500 to-cyan-600",
+    image: "https://images.unsplash.com/photo-1601598505513-7489a6272d2a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
   },
-    {
+  {
     title: "₹100 Blinkit Voucher",
     points: 500,
     brand: "Lifestyle",
-    icon: <ShoppingCart className="size-5 text-green-500" />,
-    image: "https://images.unsplash.com/photo-1537130508986-20f4fd870b4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxncm9jZXJ5JTIwYmFnfGVufDB8fHx8MTc1NDM5MTIwN3ww&ixlib=rb-4.1.0&q=80&w=1080",
-    dataAiHint: "grocery bag",
+    icon: ShoppingCart,
+    color: "from-green-500 to-emerald-600",
+    image: "https://images.unsplash.com/photo-1537130508986-20f4fd870b4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
   },
   {
-    title: "Sharda Canteen Coupon",
+    title: "Canteen Coupon",
     points: 300,
     brand: "Campus",
-    icon: <Utensils className="size-5 text-red-500" />,
-    image: "https://images.unsplash.com/photo-1539136788836-5699e78bfc75?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxmb29kJTIwcGxhdGV8ZW58MHx8fHwxNzU0MzkxMjA3fDA&ixlib=rb-4.1.0&q=80&w=1080",
-    dataAiHint: "food plate",
+    icon: Utensils,
+    color: "from-orange-500 to-red-600",
+    image: "https://images.unsplash.com/photo-1539136788836-5699e78bfc75?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
   },
 ];
 
-const badges: any[] = [
-  // This would be fetched from a database in a real app
-];
+// Reward Card Component
+const RewardCard = ({
+  reward,
+  userPoints,
+  onRedeem,
+  isRedeeming
+}: {
+  reward: typeof rewards[0];
+  userPoints: number;
+  onRedeem: () => void;
+  isRedeeming: boolean;
+}) => {
+  const canRedeem = userPoints >= reward.points;
+  const Icon = reward.icon;
 
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform">
+      {/* Image */}
+      <div className="relative h-28 overflow-hidden">
+        <Image
+          src={reward.image}
+          alt={reward.title}
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className={cn(
+          "absolute bottom-2 left-2 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br",
+          reward.color
+        )}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+        <Badge className="absolute top-2 right-2 bg-white/90 text-gray-800 text-xs">
+          {reward.brand}
+        </Badge>
+      </div>
+
+      {/* Content */}
+      <div className="p-3">
+        <h3 className="font-semibold text-sm text-gray-800 dark:text-white mb-2">{reward.title}</h3>
+        <Button
+          className={cn(
+            "w-full h-10 rounded-xl text-sm font-medium",
+            canRedeem
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+              : "bg-gray-100 text-gray-400 dark:bg-gray-700"
+          )}
+          disabled={!canRedeem || isRedeeming}
+          onClick={onRedeem}
+        >
+          {isRedeeming ? "Redeeming..." : `${reward.points} pts`}
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 export default function Rewards() {
   const [userPoints, setUserPoints] = React.useState(0);
   const [user, setUser] = React.useState<any>(null);
   const [isRedeeming, setIsRedeeming] = React.useState<string | null>(null);
+  const [activeTab, setActiveTab] = React.useState<"rewards" | "history">("rewards");
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -83,140 +127,143 @@ export default function Rewards() {
     });
     return () => unsubscribeAuth();
   }, []);
-  
+
   const handleRedeem = async (reward: typeof rewards[0]) => {
-      if (!user) {
-          toast({ variant: "destructive", title: "Not Logged In", description: "You must be logged in to redeem rewards." });
-          return;
-      }
-      if (userPoints < reward.points) {
-           toast({ variant: "destructive", title: "Not Enough Points", description: `You need ${reward.points - userPoints} more points to redeem this.` });
-           return;
-      }
-      
-      setIsRedeeming(reward.title);
+    if (!user) {
+      toast({ variant: "destructive", title: "Not Logged In" });
+      return;
+    }
+    if (userPoints < reward.points) {
+      toast({ variant: "destructive", title: "Not Enough Points", description: `Need ${reward.points - userPoints} more points` });
+      return;
+    }
 
-      try {
-          const userDocRef = doc(db, "users", user.uid);
-          const vouchersCollectionRef = collection(db, "redeemed_vouchers");
+    setIsRedeeming(reward.title);
 
-          await runTransaction(db, async (transaction) => {
-              const userDoc = await transaction.get(userDocRef);
-              if (!userDoc.exists()) {
-                  throw "User document does not exist!";
-              }
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      const vouchersCollectionRef = collection(db, "redeemed_vouchers");
 
-              const newPoints = (userDoc.data().points || 0) - reward.points;
-              if (newPoints < 0) {
-                  throw "Insufficient points.";
-              }
+      await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        if (!userDoc.exists()) throw "User not found";
 
-              transaction.update(userDocRef, { points: newPoints });
-              
-              transaction.set(doc(vouchersCollectionRef), {
-                  userId: user.uid,
-                  title: reward.title,
-                  points: reward.points,
-                  redeemedAt: serverTimestamp(),
-              });
-          });
+        const newPoints = (userDoc.data().points || 0) - reward.points;
+        if (newPoints < 0) throw "Insufficient points";
 
-          toast({
-              title: "🎉 Reward Redeemed! 🎉",
-              description: `You've successfully redeemed the ${reward.title}.`,
-          });
+        transaction.update(userDocRef, { points: newPoints });
+        transaction.set(doc(vouchersCollectionRef), {
+          userId: user.uid,
+          title: reward.title,
+          points: reward.points,
+          redeemedAt: serverTimestamp(),
+        });
+      });
 
-      } catch (error) {
-          console.error("Redemption failed:", error);
-          toast({ variant: "destructive", title: "Redemption Failed", description: "Something went wrong. Please try again." });
-      } finally {
-          setIsRedeeming(null);
-      }
-  }
-
+      toast({
+        title: "🎉 Redeemed!",
+        description: `You got ${reward.title}`,
+      });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Failed", description: "Please try again" });
+    } finally {
+      setIsRedeeming(null);
+    }
+  };
 
   return (
-    <Tabs defaultValue="redeem" className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <TabsList>
-          <TabsTrigger value="redeem">
-            <Gift className="mr-2" /> Redeem Rewards
-          </TabsTrigger>
-          <TabsTrigger value="badges">
-            <Star className="mr-2" /> My Badges
-          </TabsTrigger>
-        </TabsList>
-        <div className="text-center sm:text-right">
-            <p className="text-sm text-muted-foreground">Your Points</p>
-            <p className="text-2xl font-bold text-primary">{userPoints.toLocaleString()} pts</p>
+    <div className="space-y-4 -mx-4">
+      {/* Points Header */}
+      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 mx-4 rounded-2xl p-5 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white/80 text-sm">Your Points Balance</p>
+            <p className="text-4xl font-bold">{userPoints.toLocaleString()}</p>
+          </div>
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+            <Star className="w-8 h-8 text-yellow-300" />
+          </div>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold">12</p>
+            <p className="text-xs text-white/80">Rides Taken</p>
+          </div>
+          <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+            <p className="text-2xl font-bold">3</p>
+            <p className="text-xs text-white/80">Redeemed</p>
+          </div>
         </div>
       </div>
 
-      <TabsContent value="redeem">
-        {rewards.length === 0 ? (
-          <Card className="flex items-center justify-center h-60">
-            <CardContent className="text-center">
-              <Gift className="mx-auto size-12 text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">No rewards available at the moment. Check back later!</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {rewards.map((reward, index) => (
-              <Card key={index} className="flex flex-col">
-                <CardHeader className="p-0">
-                  <div className="relative h-40 w-full">
-                      <Image src={reward.image} alt={reward.title} layout="fill" objectFit="cover" className="rounded-t-lg" data-ai-hint={reward.dataAiHint} />
-                      <div className="absolute bottom-2 right-2 p-2 bg-background/80 rounded-full shadow-lg">
-                          {reward.icon}
-                      </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col justify-between p-4">
-                  <div>
-                    <Badge variant="outline" className="mb-2">{reward.brand}</Badge>
-                    <CardTitle className="text-lg">{reward.title}</CardTitle>
-                  </div>
-                </CardContent>
-                <CardFooter className="p-4 pt-0">
-                  <Button 
-                    className="w-full" 
-                    disabled={userPoints < reward.points || isRedeeming !== null}
-                    onClick={() => handleRedeem(reward)}
-                  >
-                    {isRedeeming === reward.title ? 'Redeeming...' : `Redeem for ${reward.points} pts`}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+      {/* Tabs */}
+      <div className="flex gap-2 px-4">
+        <button
+          onClick={() => setActiveTab("rewards")}
+          className={cn(
+            "flex-1 py-3 rounded-xl font-medium text-sm transition-all",
+            activeTab === "rewards"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          )}
+        >
+          <Gift className="w-4 h-4 inline mr-2" />
+          Rewards
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={cn(
+            "flex-1 py-3 rounded-xl font-medium text-sm transition-all",
+            activeTab === "history"
+              ? "bg-indigo-600 text-white"
+              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          )}
+        >
+          <Star className="w-4 h-4 inline mr-2" />
+          History
+        </button>
+      </div>
+
+      {/* Content */}
+      {activeTab === "rewards" ? (
+        <div className="grid grid-cols-2 gap-3 px-4">
+          {rewards.map((reward, index) => (
+            <RewardCard
+              key={index}
+              reward={reward}
+              userPoints={userPoints}
+              onRedeem={() => handleRedeem(reward)}
+              isRedeeming={isRedeeming === reward.title}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center">
+            <Gift className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 text-sm">No redemption history yet</p>
+            <p className="text-xs text-gray-400 mt-1">Start redeeming rewards!</p>
           </div>
-        )}
-      </TabsContent>
-      <TabsContent value="badges">
-        {badges.length === 0 ? (
-            <Card className="flex items-center justify-center h-60">
-                <CardContent className="text-center">
-                <Star className="mx-auto size-12 text-muted-foreground" />
-                <p className="mt-4 text-muted-foreground">You haven't earned any badges yet. Keep commuting!</p>
-                </CardContent>
-            </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {badges.map((badge: any, index) => (
-              <Card key={index} className={`transition-opacity ${!badge.unlocked ? 'opacity-50' : ''}`}>
-                <CardContent className="flex flex-col items-center text-center p-6">
-                  <div className="relative mb-4">
-                      <Image src={badge.icon} alt={badge.title} width={80} height={80} className="rounded-full" data-ai-hint={badge.dataAiHint} />
-                      {badge.unlocked && <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1"><Star className="size-4 text-white fill-white" /></div>}
-                  </div>
-                  <CardTitle className="text-md">{badge.title}</CardTitle>
-                  <CardDescription className="text-xs mt-1">{badge.description}</CardDescription>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </TabsContent>
-    </Tabs>
+        </div>
+      )}
+
+      {/* How to Earn Section */}
+      <div className="px-4 pb-4">
+        <h3 className="font-semibold text-gray-800 dark:text-white mb-3">How to Earn Points</h3>
+        <div className="space-y-2">
+          {[
+            { action: "Track a ride", points: "+10 pts" },
+            { action: "Report crowd level", points: "+5 pts" },
+            { action: "Share a ride", points: "+20 pts" },
+            { action: "Complete your profile", points: "+50 pts" },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl">
+              <span className="text-sm text-gray-600 dark:text-gray-400">{item.action}</span>
+              <span className="text-sm font-semibold text-green-600">{item.points}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

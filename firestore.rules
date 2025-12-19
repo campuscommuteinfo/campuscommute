@@ -3,52 +3,47 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
-    // Vehicle data can be read by any authenticated user, but not written.
-    // In a real app, this would be writeable only by a trusted backend service.
-    match /vehicles/{vehicleId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Protect vehicle data from client-side writes
-    }
-
-    // User-specific data
+    // Users can read and write their own data
     match /users/{userId} {
-      // Users can read and update their own document, but NOT their isAdmin status
-      allow read, create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null && request.auth.uid == userId && !("isAdmin" in request.resource.data);
-
-      // Emergency contacts are private to the user.
-      match /emergency_contacts/{contactId} {
-      	allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
+      // Allow read if authenticated and is the owner
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow create for any authenticated user (for first-time sign-up)
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow update/delete only for the owner
+      allow update, delete: if request.auth != null && request.auth.uid == userId;
       
-      // Redeemed vouchers are private to the user.
-      match /redeemed_vouchers/{voucherId} {
-      	allow read, create: if request.auth != null && request.auth.uid == userId;
-        allow update, delete: if false; // Vouchers should not be updated/deleted by user
-      }
-
-      // Users can manage their own push notification subscriptions
-      match /subscriptions/{subscriptionId} {
+      // Users can only manage their own emergency contacts
+      match /emergency_contacts/{contactId} {
         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
     
-    // Ride sharing data
-    match /rides/{rideId} {
-      // Any authenticated user can see available rides and list them.
-      allow get, list, create: if request.auth != null;
-      // Only the driver who created the ride can update or delete it.
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.driverId;
+    // Allow logged-in users to read vehicle data
+    match /vehicles/{vehicleId} {
+      allow read: if request.auth != null;
     }
     
-    // Ride requests
+    // Allow logged-in users to submit reports
+    match /vehicle_reports/{reportId} {
+      allow create: if request.auth != null;
+    }
+
+    // Allow logged-in users to read and create redeemed vouchers for themselves
+    match /redeemed_vouchers/{voucherId} {
+        allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+        allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Allow logged-in users to read and create rides
+    match /rides/{rideId} {
+        allow read, create: if request.auth != null;
+    }
+
+    // Ride requests can be created by any authenticated user.
+    // They can only be read by the driver or the requester.
     match /ride_requests/{requestId} {
-    	// The requester can create a request.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.requesterId;
-      // The driver can read requests for their rides.
-      allow read: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/rides/$(request.resource.data.rideId)).data.driverId;
-      // The driver can update the status (accept/decline).
-      allow update: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/rides/$(resource.data.rideId)).data.driverId;
+        allow create: if request.auth != null;
+        allow read, update: if request.auth != null && (request.auth.uid == resource.data.driverId || request.auth.uid == resource.data.requesterId);
     }
   }
 }

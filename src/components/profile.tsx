@@ -1,24 +1,36 @@
-
 "use client";
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+    User,
+    LogOut,
+    ChevronRight,
+    BadgeCheck,
+    Settings,
+    Shield,
+    Bell,
+    HelpCircle,
+    FileText,
+    Trash2,
+    Camera,
+    Star,
+    Edit2,
+    Check,
+    X,
+    Music,
+    Cigarette,
+    Users
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { onAuthStateChanged, signOut, deleteUser } from "firebase/auth";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -29,69 +41,77 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { useToast } from "@/hooks/use-toast";
-import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { BadgeCheck, Trash2, UploadCloud } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { onAuthStateChanged, reauthenticateWithCredential, EmailAuthProvider, updatePassword, deleteUser } from "firebase/auth";
-import { Skeleton } from "./ui/skeleton";
+} from "@/components/ui/alert-dialog";
 
-const profileFormSchema = z.object({
-    name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-    email: z.string().email(),
-    collegeName: z.string().optional(),
-    studentId: z.string().optional(),
-});
+// Menu item component
+const MenuItem = ({
+    icon: Icon,
+    label,
+    onClick,
+    value,
+    destructive = false,
+    showArrow = true
+}: {
+    icon: React.ElementType;
+    label: string;
+    onClick?: () => void;
+    value?: string;
+    destructive?: boolean;
+    showArrow?: boolean;
+}) => (
+    <button
+        onClick={onClick}
+        className={cn(
+            "w-full flex items-center gap-4 p-4 bg-white dark:bg-gray-800 active:bg-gray-50 dark:active:bg-gray-700 transition-colors",
+            destructive && "text-red-500"
+        )}
+    >
+        <div className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center",
+            destructive ? "bg-red-50 dark:bg-red-900/20" : "bg-gray-100 dark:bg-gray-700"
+        )}>
+            <Icon className="w-5 h-5" />
+        </div>
+        <span className="flex-1 font-medium text-sm text-left">{label}</span>
+        {value && <span className="text-sm text-gray-500">{value}</span>}
+        {showArrow && !value && <ChevronRight className="w-5 h-5 text-gray-400" />}
+    </button>
+);
 
-const ridePreferencesSchema = z.object({
-  genderPreference: z.enum(["any", "female"]),
-  isSmokingAllowed: z.boolean(),
-  isMusicAllowed: z.boolean(),
-});
-
-const passwordFormSchema = z.object({
-    currentPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
-    newPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
-});
+// Toggle item component
+const ToggleItem = ({
+    icon: Icon,
+    label,
+    description,
+    checked,
+    onCheckedChange
+}: {
+    icon: React.ElementType;
+    label: string;
+    description?: string;
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+}) => (
+    <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800">
+        <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+            <Icon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+        </div>
+        <div className="flex-1">
+            <p className="font-medium text-sm text-gray-800 dark:text-white">{label}</p>
+            {description && <p className="text-xs text-gray-500">{description}</p>}
+        </div>
+        <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+);
 
 export default function Profile() {
     const { toast } = useToast();
     const router = useRouter();
-    const [isLoading, setIsLoading] = React.useState(true);
     const [user, setUser] = React.useState<any>(null);
-    const [isProfileNew, setIsProfileNew] = React.useState(false);
-
-    const profileForm = useForm<z.infer<typeof profileFormSchema>>({
-        resolver: zodResolver(profileFormSchema),
-        defaultValues: { name: "", email: "", collegeName: "", studentId: "" },
-    });
-
-    const ridePreferencesForm = useForm<z.infer<typeof ridePreferencesSchema>>({
-        resolver: zodResolver(ridePreferencesSchema),
-        defaultValues: {
-            genderPreference: "any",
-            isSmokingAllowed: false,
-            isMusicAllowed: true,
-        },
-    });
-
-     const passwordForm = useForm<z.infer<typeof passwordFormSchema>>({
-        resolver: zodResolver(passwordFormSchema),
-        defaultValues: { currentPassword: "", newPassword: "" },
-    });
+    const [userData, setUserData] = React.useState<any>({});
+    const [isLoading, setIsLoading] = React.useState(true);
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [editName, setEditName] = React.useState("");
 
     React.useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -100,26 +120,8 @@ export default function Profile() {
                 const userDocRef = doc(db, "users", currentUser.uid);
                 const userDoc = await getDoc(userDocRef);
                 if (userDoc.exists()) {
-                    const userData = userDoc.data();
-                    profileForm.reset({
-                        name: userData.name || currentUser.displayName || "",
-                        email: currentUser.email || "",
-                        collegeName: userData.collegeName || "",
-                        studentId: userData.studentId || "",
-                    });
-                    ridePreferencesForm.reset({
-                        genderPreference: userData.genderPreference || "any",
-                        isSmokingAllowed: userData.isSmokingAllowed || false,
-                        isMusicAllowed: userData.isMusicAllowed === false ? false : true,
-                    });
-                    if (!userData.profileComplete) {
-                        setIsProfileNew(true);
-                    }
-                } else {
-                     profileForm.reset({
-                        name: currentUser.displayName || "",
-                        email: currentUser.email || "",
-                    });
+                    setUserData(userDoc.data());
+                    setEditName(userDoc.data().name || currentUser.displayName || "");
                 }
             } else {
                 router.push('/login');
@@ -127,71 +129,50 @@ export default function Profile() {
             setIsLoading(false);
         });
         return () => unsubscribe();
-    }, [router, profileForm, ridePreferencesForm]);
+    }, [router]);
 
-    async function onProfileSubmit(data: z.infer<typeof profileFormSchema>) {
+    const handleSignOut = async () => {
+        try {
+            await signOut(auth);
+            router.push('/');
+            toast({
+                title: "Logged Out",
+                description: "You have been successfully logged out.",
+            });
+        } catch (error) {
+            toast({
+                variant: "destructive",
+                title: "Logout Failed",
+                description: "Could not log you out. Please try again.",
+            });
+        }
+    };
+
+    const handleSaveName = async () => {
+        if (!user || !editName.trim()) return;
+        try {
+            const userDocRef = doc(db, "users", user.uid);
+            await updateDoc(userDocRef, { name: editName, profileComplete: true });
+            setUserData({ ...userData, name: editName });
+            setIsEditing(false);
+            toast({ title: "Name Updated", description: "Your name has been saved." });
+        } catch (error) {
+            toast({ variant: "destructive", title: "Update Failed" });
+        }
+    };
+
+    const handleToggle = async (field: string, value: boolean) => {
         if (!user) return;
         try {
             const userDocRef = doc(db, "users", user.uid);
-            const updateData: any = { 
-                name: data.name,
-                collegeName: data.collegeName,
-                studentId: data.studentId
-            };
-            if (isProfileNew) {
-                updateData.profileComplete = true;
-            }
-
-            await setDoc(userDocRef, updateData, { merge: true });
-            
-            toast({
-                title: "Profile Updated",
-                description: "Your information has been successfully updated.",
-            });
-            
-            if (isProfileNew) {
-                setIsProfileNew(false);
-                router.push('/dashboard');
-            }
+            await updateDoc(userDocRef, { [field]: value });
+            setUserData({ ...userData, [field]: value });
         } catch (error) {
-             toast({ variant: "destructive", title: "Update Failed", description: "Could not update your profile." });
+            toast({ variant: "destructive", title: "Update Failed" });
         }
-    }
+    };
 
-     async function onPreferencesSubmit(data: z.infer<typeof ridePreferencesSchema>) {
-        if (!user) return;
-        try {
-            const userDocRef = doc(db, "users", user.uid);
-            await updateDoc(userDocRef, data);
-            toast({
-                title: "Preferences Saved",
-                description: "Your ride-sharing preferences have been updated.",
-            });
-        } catch (error) {
-            console.error(error)
-            toast({ variant: "destructive", title: "Update Failed", description: "Could not save your preferences." });
-        }
-    }
-
-    async function onPasswordSubmit(data: z.infer<typeof passwordFormSchema>) {
-        if (!user || !user.email) return;
-        
-        const credential = EmailAuthProvider.credential(user.email, data.currentPassword);
-        
-        try {
-            await reauthenticateWithCredential(user, credential);
-            await updatePassword(user, data.newPassword);
-            toast({
-                title: "Password Changed",
-                description: "Your password has been successfully updated.",
-            });
-            passwordForm.reset();
-        } catch (error) {
-             toast({ variant: "destructive", title: "Password Change Failed", description: "Incorrect current password." });
-        }
-    }
-
-    async function handleDeleteAccount() {
+    const handleDeleteAccount = async () => {
         if (!user) return;
         try {
             await deleteUser(user);
@@ -202,317 +183,158 @@ export default function Profile() {
             });
             router.push('/');
         } catch (error) {
-             toast({ variant: "destructive", title: "Deletion Failed", description: "Please log out and log back in to delete your account." });
+            toast({
+                variant: "destructive",
+                title: "Deletion Failed",
+                description: "Please log out and log back in to delete your account.",
+            });
         }
-    }
-    
+    };
+
     if (isLoading) {
         return (
-             <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                    <Skeleton className="h-24 w-24 rounded-full" />
-                    <div className="space-y-2">
-                        <Skeleton className="h-8 w-48" />
-                        <Skeleton className="h-6 w-64" />
-                    </div>
-                </div>
-                <Separator />
-                <Card>
-                    <CardHeader><Skeleton className="h-6 w-1/2" /></CardHeader>
-                    <CardContent className="space-y-4">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                    </CardContent>
-                </Card>
+            <div className="flex items-center justify-center h-64">
+                <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
             </div>
-        )
+        );
     }
 
-  return (
-    <div className="space-y-6">
-        {isProfileNew && (
-            <Card className="bg-blue-50 border-blue-200">
-                <CardHeader>
-                    <CardTitle>Welcome to Commute Companion!</CardTitle>
-                    <CardDescription>
-                        Let's get your profile set up so you can start enjoying the app. Please fill out your name and college details to continue.
-                    </CardDescription>
-                </CardHeader>
-            </Card>
-        )}
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="relative">
-                <Avatar className="h-24 w-24">
-                    <AvatarImage src={`https://placehold.co/100x100.png?text=${profileForm.getValues("name")?.charAt(0) || 'U'}`} alt={profileForm.getValues("name")} data-ai-hint="student smiling" />
-                    <AvatarFallback>{profileForm.getValues("name")?.charAt(0) || 'U'}</AvatarFallback>
-                </Avatar>
-                <Button size="icon" className="absolute -bottom-2 -right-2 rounded-full">
-                    <UploadCloud className="size-4"/>
-                    <span className="sr-only">Upload Profile Photo</span>
-                </Button>
+    return (
+        <div className="space-y-4 -mx-4">
+            {/* Profile Header */}
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 px-4 py-6">
+                <div className="flex items-center gap-4">
+                    <div className="relative">
+                        <Avatar className="w-20 h-20 border-4 border-white/30">
+                            <AvatarImage src={user?.photoURL || ""} alt={userData.name || "User"} />
+                            <AvatarFallback className="bg-white/20 text-white text-2xl font-bold">
+                                {(userData.name || user?.displayName || "U").charAt(0)}
+                            </AvatarFallback>
+                        </Avatar>
+                        <button className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95">
+                            <Camera className="w-4 h-4 text-indigo-600" />
+                        </button>
+                    </div>
+                    <div className="flex-1">
+                        {isEditing ? (
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    value={editName}
+                                    onChange={(e) => setEditName(e.target.value)}
+                                    className="h-10 bg-white/20 border-white/30 text-white placeholder:text-white/60"
+                                    autoFocus
+                                />
+                                <button onClick={handleSaveName} className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <Check className="w-5 h-5 text-white" />
+                                </button>
+                                <button onClick={() => setIsEditing(false)} className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                    <X className="w-5 h-5 text-white" />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-xl font-bold text-white">{userData.name || user?.displayName || "User"}</h1>
+                                <button onClick={() => setIsEditing(true)} className="p-1">
+                                    <Edit2 className="w-4 h-4 text-white/70" />
+                                </button>
+                            </div>
+                        )}
+                        <p className="text-white/80 text-sm">{user?.email}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-1 px-2 py-1 bg-white/20 rounded-full">
+                                <BadgeCheck className="w-3 h-3 text-white" />
+                                <span className="text-xs text-white">Verified</span>
+                            </div>
+                            <div className="flex items-center gap-1 px-2 py-1 bg-white/20 rounded-full">
+                                <Star className="w-3 h-3 text-yellow-300" />
+                                <span className="text-xs text-white">{userData.points || 0} pts</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div>
-                <h1 className="text-3xl font-bold">{profileForm.getValues("name") || "New User"}</h1>
-                <p className="text-muted-foreground">{profileForm.getValues("email")}</p>
-                <Badge variant="outline" className="mt-2">
-                    <BadgeCheck className="mr-1 text-primary"/> Verified Student
-                </Badge>
+
+            {/* Ride Preferences Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden mx-4 shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <h2 className="font-semibold text-gray-800 dark:text-white">Ride Preferences</h2>
+                </div>
+                <ToggleItem
+                    icon={Users}
+                    label="Female Only Rides"
+                    description="Only match with female riders"
+                    checked={userData.genderPreference === "female"}
+                    onCheckedChange={(checked) => handleToggle("genderPreference", checked ? "female" : "any" as any)}
+                />
+                <ToggleItem
+                    icon={Cigarette}
+                    label="Smoking Allowed"
+                    checked={userData.isSmokingAllowed || false}
+                    onCheckedChange={(checked) => handleToggle("isSmokingAllowed", checked)}
+                />
+                <ToggleItem
+                    icon={Music}
+                    label="Music Allowed"
+                    checked={userData.isMusicAllowed !== false}
+                    onCheckedChange={(checked) => handleToggle("isMusicAllowed", checked)}
+                />
+            </div>
+
+            {/* Settings Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden mx-4 shadow-sm">
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <h2 className="font-semibold text-gray-800 dark:text-white">Settings</h2>
+                </div>
+                <MenuItem icon={Bell} label="Notifications" onClick={() => toast({ title: "Coming Soon" })} />
+                <MenuItem icon={Shield} label="Privacy & Security" onClick={() => toast({ title: "Coming Soon" })} />
+                <MenuItem icon={HelpCircle} label="Help & Support" onClick={() => toast({ title: "Coming Soon" })} />
+                <MenuItem icon={FileText} label="Terms & Conditions" onClick={() => toast({ title: "Coming Soon" })} />
+            </div>
+
+            {/* Logout Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden mx-4 shadow-sm">
+                <MenuItem
+                    icon={LogOut}
+                    label="Log Out"
+                    onClick={handleSignOut}
+                    destructive
+                    showArrow={false}
+                />
+            </div>
+
+            {/* Danger Zone */}
+            <div className="mx-4 mb-8">
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="ghost" className="w-full h-12 text-red-500 hover:text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete Account
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="mx-4 rounded-2xl">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. All your data will be permanently deleted.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleDeleteAccount}
+                                className="bg-red-500 hover:bg-red-600"
+                            >
+                                Delete
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+
+            {/* App Version */}
+            <div className="text-center pb-8">
+                <p className="text-xs text-gray-400">Commute Companion v1.0.0</p>
             </div>
         </div>
-        <Separator />
-      <Card>
-        <CardHeader>
-          <CardTitle>Personal & College Information</CardTitle>
-          <CardDescription>Update your personal and academic details here.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...profileForm}>
-            <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                        control={profileForm.control}
-                        name="name"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Full Name</FormLabel>
-                            <FormControl>
-                            <Input placeholder="Your name" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={profileForm.control}
-                        name="email"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                            <Input placeholder="Your email" {...field} disabled />
-                            </FormControl>
-                            <FormDescription>You cannot change your email address.</FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={profileForm.control}
-                        name="collegeName"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>College/University</FormLabel>
-                            <FormControl>
-                            <Input placeholder="e.g., Sharda University" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={profileForm.control}
-                        name="studentId"
-                        render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Student ID Number</FormLabel>
-                            <FormControl>
-                            <Input placeholder="Your student ID" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                        )}
-                    />
-               </div>
-               <Button type="submit">Save Changes</Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-            <CardTitle>School & Verification</CardTitle>
-            <CardDescription>Verify your student status to unlock exclusive features like ride-sharing.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-center justify-between rounded-lg border p-4">
-                <div>
-                    <h3 className="font-semibold">Upload College ID</h3>
-                    <p className="text-sm text-muted-foreground">Please upload a clear picture of your ID card.</p>
-                </div>
-                <Button variant="outline" onClick={() => toast({ title: "Feature coming soon!"})}>
-                    <UploadCloud className="mr-2"/> Upload ID
-                </Button>
-            </div>
-             <div className="flex flex-col sm:flex-row items-center justify-between rounded-lg border p-4">
-                <div>
-                    <h3 className="font-semibold">Start KYC Verification</h3>
-                    <p className="text-sm text-muted-foreground">Complete a quick KYC for added security.</p>
-                </div>
-                <Button onClick={() => toast({ title: "Feature coming soon!"})}>
-                    <BadgeCheck className="mr-2"/> Start KYC
-                </Button>
-            </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Ride-Sharing Preferences</CardTitle>
-          <CardDescription>Customize your ride-sharing experience.</CardDescription>
-        </CardHeader>
-         <Form {...ridePreferencesForm}>
-            <form onSubmit={ridePreferencesForm.handleSubmit(onPreferencesSubmit)}>
-                <CardContent className="space-y-6">
-                    <FormField
-                        control={ridePreferencesForm.control}
-                        name="genderPreference"
-                        render={({ field }) => (
-                            <FormItem className="space-y-2">
-                                <FormLabel>Gender Preference</FormLabel>
-                                <FormControl>
-                                    <RadioGroup
-                                        onValueChange={field.onChange}
-                                        value={field.value}
-                                        className="flex gap-4"
-                                    >
-                                        <FormItem className="flex items-center space-x-2">
-                                            <FormControl>
-                                                <RadioGroupItem value="any" />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">Any</FormLabel>
-                                        </FormItem>
-                                        <FormItem className="flex items-center space-x-2">
-                                            <FormControl>
-                                                <RadioGroupItem value="female" />
-                                            </FormControl>
-                                            <FormLabel className="font-normal">Female Only</FormLabel>
-                                        </FormItem>
-                                    </RadioGroup>
-                                </FormControl>
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={ridePreferencesForm.control}
-                        name="isSmokingAllowed"
-                        render={({ field }) => (
-                             <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                                <div className="space-y-0.5">
-                                    <FormLabel>Smoking Preference</FormLabel>
-                                    <FormDescription className="text-xs">Allow smoking in the car?</FormDescription>
-                                </div>
-                                <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={ridePreferencesForm.control}
-                        name="isMusicAllowed"
-                        render={({ field }) => (
-                             <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                                <div className="space-y-0.5">
-                                    <FormLabel>Music Preference</FormLabel>
-                                    <FormDescription className="text-xs">Allow music in the car?</FormDescription>
-                                </div>
-                                <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                    />
-                </CardContent>
-                <CardFooter>
-                    <Button type="submit">Save Preferences</Button>
-                </CardFooter>
-            </form>
-        </Form>
-      </Card>
-      
-       <Card>
-        <CardHeader>
-          <CardTitle>Change Password</CardTitle>
-          <CardDescription>
-            For security, please choose a strong password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4">
-              <FormField
-                control={passwordForm.control}
-                name="currentPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Current Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={passwordForm.control}
-                name="newPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>New Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <Button type="submit">Update Password</Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-       <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-           <CardDescription>
-            Be careful! These actions are irreversible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row gap-4">
-           <AlertDialog>
-            <AlertDialogTrigger asChild>
-                 <Button variant="destructive" className="w-full">
-                    <Trash2 className="mr-2" /> Delete Account
-                 </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete your
-                  account and remove your data from our servers.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive hover:bg-destructive/90">
-                    Yes, delete account
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
-    </div>
-  );
+    );
 }
-
-    

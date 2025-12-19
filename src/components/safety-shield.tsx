@@ -1,35 +1,35 @@
-
 "use client";
 
 import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, MessageSquare, UserPlus, Phone, Share2, Trash2 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+    Shield,
+    Phone,
+    Share2,
+    UserPlus,
+    MessageSquare,
+    Trash2,
+    AlertTriangle,
+    MapPin,
+    Users
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import AddEmergencyContactDialog from "./add-emergency-contact-dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Skeleton } from "./ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface EmergencyContact {
@@ -38,6 +38,62 @@ export interface EmergencyContact {
     relation: string;
     phone: string;
 }
+
+// Contact Card Component
+const ContactCard = ({
+    contact,
+    onDelete
+}: {
+    contact: EmergencyContact;
+    onDelete: () => void;
+}) => (
+    <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
+        <Avatar className="w-12 h-12">
+            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold">
+                {contact.name.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-gray-800 dark:text-white truncate">{contact.name}</p>
+            <p className="text-xs text-gray-500">{contact.relation}</p>
+        </div>
+        <div className="flex gap-1">
+            <a
+                href={`tel:${contact.phone}`}
+                className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center active:scale-95 transition-transform"
+            >
+                <Phone className="w-4 h-4 text-green-600" />
+            </a>
+            <a
+                href={`sms:${contact.phone}`}
+                className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center active:scale-95 transition-transform"
+            >
+                <MessageSquare className="w-4 h-4 text-blue-600" />
+            </a>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <button className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center active:scale-95 transition-transform">
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="mx-4 rounded-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Contact?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Remove {contact.name} from your emergency contacts?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={onDelete} className="bg-red-500 hover:bg-red-600">
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    </div>
+);
 
 export default function SafetyShield() {
     const { toast } = useToast();
@@ -78,13 +134,12 @@ export default function SafetyShield() {
                 setSosCountdown(sosCountdown - 1);
             }, 1000);
         } else if (isSosActive && sosCountdown === 0) {
-            // Trigger the actual SOS alert
             toast({
                 variant: "destructive",
-                title: "🆘 SOS Alert Triggered!",
-                description: "Your location has been shared with campus security and your emergency contacts.",
+                title: "🆘 SOS Alert Sent!",
+                description: "Location shared with security and contacts.",
             });
-            setIsSosActive(false); // Reset after triggering
+            setIsSosActive(false);
             setSosCountdown(3);
         }
         return () => clearTimeout(timer);
@@ -96,16 +151,15 @@ export default function SafetyShield() {
         } else {
             setIsSosActive(false);
             setSosCountdown(3);
-            toast({ title: "SOS Cancelled", description: "The emergency alert has been cancelled." });
+            toast({ title: "SOS Cancelled" });
         }
     };
 
-
     const handleShareTrip = () => {
-        navigator.clipboard.writeText("https://commute-companion.app/trip/jH8sK9lM");
+        navigator.clipboard.writeText("https://commute.app/trip/abc123");
         toast({
-            title: "✅ Trip Link Copied!",
-            description: "Share it with your trusted contacts to track your journey.",
+            title: "Link Copied!",
+            description: "Share with trusted contacts",
         });
     };
 
@@ -114,135 +168,143 @@ export default function SafetyShield() {
         try {
             const contactDocRef = doc(db, "users", user.uid, "emergency_contacts", contactId);
             await deleteDoc(contactDocRef);
-            toast({
-                title: "Contact Deleted",
-                description: "The emergency contact has been removed.",
-            });
+            toast({ title: "Contact Deleted" });
         } catch (error) {
-             toast({
-                variant: "destructive",
-                title: "Deletion Failed",
-                description: "Could not delete the contact. Please try again.",
-            });
+            toast({ variant: "destructive", title: "Failed to delete" });
         }
-    }
+    };
 
-  return (
-    <>
-        <div className="space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card className="bg-destructive/10 border-destructive">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                <Shield className="text-destructive" />
-                Emergency SOS
-                </CardTitle>
-                <CardDescription>
-                    In case of an emergency, press and hold the SOS button to alert campus security and your contacts.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button 
-                    size="lg" 
-                    className={cn(
-                        "w-full h-16 text-lg transition-all duration-300",
-                        isSosActive ? "bg-amber-500 hover:bg-amber-600" : "bg-destructive hover:bg-destructive/90"
-                    )}
-                    onClick={handleSosClick}
-                >
-                <Shield className="mr-2 size-8" /> 
-                {isSosActive ? `CANCEL (${sosCountdown})` : "PRESS FOR SOS"}
-                </Button>
-            </CardContent>
-            </Card>
-
-            <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-3">
-                <Share2 className="text-primary"/>
-                Virtual Travel Buddy
-                </CardTitle>
-                <CardDescription>
-                    Share your live trip location with friends or family so they can follow your journey in real-time.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button size="lg" className="w-full h-16 text-lg" onClick={handleShareTrip}>
-                <Share2 className="mr-2 size-8" /> Share My Live Trip
-                </Button>
-            </CardContent>
-            </Card>
-        </div>
-
-        <Card>
-            <CardHeader>
-            <CardTitle>Manage Emergency Contacts</CardTitle>
-            <CardDescription>
-                Add trusted contacts who will be notified during an SOS alert.
-            </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {isLoading ? (
-                     <div className="space-y-3">
-                        <Skeleton className="h-16 w-full" />
-                        <Skeleton className="h-16 w-full" />
-                    </div>
-                ) : emergencyContacts.length === 0 ? (
-                    <div className="text-center text-muted-foreground p-4 border-2 border-dashed rounded-lg">
-                        <p>No emergency contacts added yet.</p>
-                    </div>
-                ) : (
-                    emergencyContacts.map((contact) => (
-                        <div key={contact.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <div className="flex items-center gap-4">
-                                <Avatar>
-                                    <AvatarImage src={`https://placehold.co/40x40.png?text=${contact.name.charAt(0)}`} alt={contact.name} data-ai-hint="person smiling" />
-                                    <AvatarFallback>{contact.name.substring(0,2)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-semibold">{contact.name}</p>
-                                    <p className="text-sm text-muted-foreground">{contact.relation}</p>
-                                </div>
+    return (
+        <>
+            <div className="space-y-4 -mx-4">
+                {/* SOS Button Section */}
+                <div className="px-4">
+                    <div className={cn(
+                        "rounded-2xl p-6 transition-all duration-300",
+                        isSosActive
+                            ? "bg-gradient-to-br from-amber-500 to-orange-600"
+                            : "bg-gradient-to-br from-red-500 to-rose-600"
+                    )}>
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                <Shield className="w-6 h-6 text-white" />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Button variant="ghost" size="icon" asChild>
-                                    <a href={`sms:${contact.phone}`}><MessageSquare className="size-4" /></a>
-                                </Button>
-                                <Button variant="ghost" size="icon" asChild>
-                                    <a href={`tel:${contact.phone}`}><Phone className="size-4" /></a>
-                                </Button>
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                            <Trash2 className="size-4" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete Contact?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Are you sure you want to remove {contact.name} from your emergency contacts? This action cannot be undone.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => handleDeleteContact(contact.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
+                            <div>
+                                <h2 className="text-lg font-bold text-white">Emergency SOS</h2>
+                                <p className="text-white/80 text-xs">Alert security & contacts</p>
                             </div>
                         </div>
-                    ))
-                )}
-            </CardContent>
-            <CardFooter>
-                <Button variant="outline" className="w-full" onClick={() => setIsAddDialogOpen(true)}>
-                    <UserPlus className="mr-2" /> Add New Contact
-                </Button>
-            </CardFooter>
-        </Card>
-        </div>
-        <AddEmergencyContactDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
-    </>
-  );
+
+                        <Button
+                            onClick={handleSosClick}
+                            className={cn(
+                                "w-full h-16 text-lg font-bold rounded-xl transition-all",
+                                isSosActive
+                                    ? "bg-white text-amber-600 hover:bg-gray-100"
+                                    : "bg-white/20 text-white hover:bg-white/30 border-2 border-white/50"
+                            )}
+                        >
+                            <AlertTriangle className="w-6 h-6 mr-2" />
+                            {isSosActive ? `CANCEL (${sosCountdown}s)` : "HOLD FOR SOS"}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="grid grid-cols-2 gap-3 px-4">
+                    <button
+                        onClick={handleShareTrip}
+                        className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm active:scale-95 transition-transform"
+                    >
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
+                            <Share2 className="w-6 h-6 text-white" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-800 dark:text-white">Share Trip</span>
+                        <span className="text-xs text-gray-500">Live location</span>
+                    </button>
+
+                    <button
+                        onClick={() => toast({ title: "Coming Soon" })}
+                        className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm active:scale-95 transition-transform"
+                    >
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                            <MapPin className="w-6 h-6 text-white" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-800 dark:text-white">Safe Zones</span>
+                        <span className="text-xs text-gray-500">Campus areas</span>
+                    </button>
+                </div>
+
+                {/* Emergency Contacts Section */}
+                <div className="px-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-gray-800 dark:text-white">Emergency Contacts</h3>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-indigo-600"
+                            onClick={() => setIsAddDialogOpen(true)}
+                        >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Add
+                        </Button>
+                    </div>
+
+                    {isLoading ? (
+                        <div className="space-y-3">
+                            {[1, 2].map((i) => (
+                                <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
+                            ))}
+                        </div>
+                    ) : emergencyContacts.length === 0 ? (
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center">
+                            <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-gray-500 text-sm">No emergency contacts</p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-3"
+                                onClick={() => setIsAddDialogOpen(true)}
+                            >
+                                <UserPlus className="w-4 h-4 mr-1" />
+                                Add Contact
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {emergencyContacts.map((contact) => (
+                                <ContactCard
+                                    key={contact.id}
+                                    contact={contact}
+                                    onDelete={() => handleDeleteContact(contact.id)}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Safety Tips */}
+                <div className="px-4 pb-4">
+                    <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Safety Tips</h3>
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden">
+                        {[
+                            "Always verify the driver/vehicle before boarding",
+                            "Share your trip with family or friends",
+                            "Sit in the back seat when using cab services",
+                            "Trust your instincts - if something feels wrong, leave",
+                        ].map((tip, i) => (
+                            <div key={i} className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <span className="text-xs font-bold text-green-600">{i + 1}</span>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">{tip}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            <AddEmergencyContactDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
+        </>
+    );
 }

@@ -1,36 +1,83 @@
-
 "use client";
 
 import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Ticket, Bus } from "lucide-react";
+import { Ticket, Bus, Gift, QrCode, Calendar, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { Skeleton } from "./ui/skeleton";
+import { cn } from "@/lib/utils";
 
 interface RedeemedRide {
     id: string;
     title: string;
     points: number;
-    redeemedAt: any; // Firestore Timestamp
+    redeemedAt: any;
 }
+
+// Voucher Card Component
+const VoucherCard = ({ ride }: { ride: RedeemedRide }) => {
+    const [showQR, setShowQR] = React.useState(false);
+    const date = ride.redeemedAt?.toDate?.() || new Date();
+
+    return (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700">
+            {/* Header with gradient */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-4">
+                <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <Bus className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-white">{ride.title}</h3>
+                        <p className="text-white/80 text-xs">Valid on all routes</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4">
+                <div className="flex items-center gap-2 text-gray-500 text-xs mb-4">
+                    <Calendar className="w-4 h-4" />
+                    <span>Redeemed: {date.toLocaleDateString()}</span>
+                </div>
+
+                {showQR ? (
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center">
+                        <div className="w-32 h-32 mx-auto bg-white rounded-lg flex items-center justify-center mb-3">
+                            <QrCode className="w-20 h-20 text-gray-300" />
+                        </div>
+                        <p className="text-xs text-gray-500 mb-3">Show this to the conductor</p>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowQR(false)}
+                            className="rounded-xl"
+                        >
+                            Hide QR Code
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
+                        className="w-full h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                        onClick={() => setShowQR(true)}
+                    >
+                        <QrCode className="w-4 h-4 mr-2" />
+                        Show QR Code
+                    </Button>
+                )}
+            </div>
+        </div>
+    );
+};
 
 export default function MyFreeRides() {
     const [redeemedRides, setRedeemedRides] = React.useState<RedeemedRide[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [user, setUser] = React.useState<any>(null);
 
-     React.useEffect(() => {
+    React.useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
@@ -52,79 +99,67 @@ export default function MyFreeRides() {
         return () => unsubscribeAuth();
     }, []);
 
+    return (
+        <div className="space-y-4 -mx-4">
+            {/* Header */}
+            <div className="px-4">
+                <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-5 text-white">
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center">
+                            <Ticket className="w-7 h-7 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold">My Vouchers</h1>
+                            <p className="text-white/80 text-sm">{redeemedRides.length} available</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-  return (
-    <div className="space-y-6">
-       <Card>
-        <CardHeader>
-            <CardTitle>My Redeemed Rides</CardTitle>
-            <CardDescription>
-                Here are all the free ride vouchers you've collected. Use them on any eligible bus!
-            </CardDescription>
-        </CardHeader>
-        <CardContent>
-             {isLoading ? (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => (
-                        <Card key={i}>
-                            <CardHeader>
-                                <div className="flex items-center gap-4">
-                                    <Skeleton className="h-12 w-12 rounded-lg" />
-                                    <div className="space-y-2">
-                                        <Skeleton className="h-4 w-32" />
-                                        <Skeleton className="h-4 w-24" />
+            {/* Content */}
+            <div className="px-4 pb-4">
+                {isLoading ? (
+                    <div className="space-y-4">
+                        {[1, 2].map((i) => (
+                            <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl h-40 animate-pulse" />
+                        ))}
+                    </div>
+                ) : redeemedRides.length === 0 ? (
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center">
+                        <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <h3 className="font-semibold text-gray-800 dark:text-white mb-1">No Vouchers Yet</h3>
+                        <p className="text-gray-500 text-sm mb-4">Redeem your points to get free ride vouchers</p>
+                        <Link href="/dashboard/rewards">
+                            <Button className="rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
+                                <Gift className="w-4 h-4 mr-2" />
+                                Go to Rewards
+                            </Button>
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {redeemedRides.map((ride) => (
+                            <VoucherCard key={ride.id} ride={ride} />
+                        ))}
+
+                        {/* Get More Section */}
+                        <Link href="/dashboard/rewards">
+                            <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 flex items-center justify-between active:scale-[0.98] transition-transform">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                                        <Gift className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-sm text-gray-800 dark:text-white">Get More Vouchers</p>
+                                        <p className="text-xs text-gray-500">Redeem your points</p>
                                     </div>
                                 </div>
-                            </CardHeader>
-                            <CardContent>
-                               <div className="mt-4 bg-white p-2 rounded-lg aspect-square flex items-center justify-center">
-                                    <Skeleton className="h-32 w-full" />
-                               </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                 </div>
-             ) : redeemedRides.length === 0 ? (
-                <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg">
-                    <Ticket className="size-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold">No Vouchers Yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                        You haven't redeemed any ride vouchers. Head over to the rewards page to get started.
-                    </p>
-                    <Link href="/dashboard/rewards">
-                        <Button variant="outline">Go to Rewards</Button>
-                    </Link>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                   {redeemedRides.map((ride) => (
-                       <Card key={ride.id} className="bg-primary/5">
-                           <CardHeader>
-                               <div className="flex items-center gap-4">
-                                   <div className="p-3 bg-primary/20 rounded-lg">
-                                        <Bus className="size-6 text-primary" />
-                                   </div>
-                                   <div>
-                                       <CardTitle className="text-primary">{ride.title}</CardTitle>
-                                       <CardDescription>Valid on all ₹50 routes</CardDescription>
-                                   </div>
-                               </div>
-                           </CardHeader>
-                           <CardContent>
-                               <p className="text-sm">
-                                    Show this QR code to the conductor to redeem your free ride.
-                               </p>
-                               {/* Placeholder for QR Code */}
-                               <div className="mt-4 bg-white p-2 rounded-lg aspect-square flex items-center justify-center">
-                                    <p className="text-muted-foreground text-sm">QR Code Here</p>
-                               </div>
-                           </CardContent>
-                       </Card>
-                   ))}
-                </div>
-            )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+                                <ChevronRight className="w-5 h-5 text-gray-400" />
+                            </div>
+                        </Link>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
