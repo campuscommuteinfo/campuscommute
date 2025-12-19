@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { auth, db, googleProvider } from "@/lib/firebase";
 import { FirebaseError } from "firebase/app";
-import { signInWithRedirect, getRedirectResult, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserPopupRedirectResolver } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -17,95 +17,132 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [checkingAuth, setCheckingAuth] = React.useState(true);
+  const [debugInfo, setDebugInfo] = React.useState<string>("");
+
+  // Handle user after successful sign-in
+  const handleUserSignIn = React.useCallback(async (user: any, isNewUser: boolean = false) => {
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          email: user.email,
+          name: user.displayName || "",
+          photoURL: user.photoURL || "",
+          points: 0,
+          profileComplete: true,
+          createdAt: new Date().toISOString(),
+        });
+        toast({
+          title: "Welcome! 🎉",
+          description: "Your account has been created.",
+        });
+      } else if (!isNewUser) {
+        toast({
+          title: "Welcome back! 👋",
+          description: "Signed in successfully.",
+        });
+      }
+
+      // Use window.location for more reliable redirect on production
+      window.location.href = "/dashboard";
+    } catch (error) {
+      console.error("Error handling user:", error);
+      setDebugInfo(`Error: ${error}`);
+      setCheckingAuth(false);
+    }
+  }, [toast]);
 
   React.useEffect(() => {
     let isMounted = true;
 
-    // First, check if user is already logged in
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!isMounted) return;
+    const checkAuth = async () => {
+      // First check redirect result (for returning from Google)
+      try {
+        setDebugInfo("Checking redirect result...");
+        const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+        if (result?.user && isMounted) {
+          setDebugInfo("Got redirect result, handling user...");
+          await handleUserSignIn(result.user, true);
+          return;
+        }
+      } catch (error) {
+        console.error("Redirect result error:", error);
+        if (error instanceof FirebaseError && error.code !== "auth/popup-closed-by-user") {
+          setDebugInfo(`Redirect error: ${error.code}`);
+        }
+      }
 
-      if (user) {
-        // User is already logged in, redirect to dashboard
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDoc = await getDoc(userDocRef);
+      // Then check current auth state
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (!isMounted) return;
 
-          if (!userDoc.exists()) {
-            // Create user document if it doesn't exist
-            await setDoc(userDocRef, {
-              email: user.email,
-              name: user.displayName || "",
-              photoURL: user.photoURL || "",
-              points: 0,
-              profileComplete: true,
-              createdAt: new Date().toISOString(),
-            });
-            toast({
-              title: "Welcome! 🎉",
-              description: "Your account has been created.",
-            });
-          } else {
-            toast({
-              title: "Welcome back! 👋",
-              description: "Signed in successfully.",
-            });
-          }
-
-          router.replace("/dashboard");
-        } catch (error) {
-          console.error("Error handling user:", error);
+        if (user) {
+          setDebugInfo("User found via onAuthStateChanged");
+          await handleUserSignIn(user);
+        } else {
+          setDebugInfo("No user found");
           setCheckingAuth(false);
         }
-      } else {
-        // No user logged in, check for redirect result
-        try {
-          const result = await getRedirectResult(auth);
-          if (result?.user) {
-            // This will trigger onAuthStateChanged again
-            return;
-          }
-        } catch (error) {
-          console.error("Redirect result error:", error);
-          if (error instanceof FirebaseError) {
-            toast({
-              variant: "destructive",
-              title: "Sign In Failed",
-              description: error.message,
-            });
-          }
-        }
-        setCheckingAuth(false);
-      }
-    });
+      });
+
+      return () => unsubscribe();
+    };
+
+    checkAuth();
 
     return () => {
       isMounted = false;
-      unsubscribe();
     };
-  }, [router, toast]);
+  }, [handleUserSignIn]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+    setDebugInfo("Starting sign in...");
 
     try {
-      // Use redirect for all devices - more reliable
-      await signInWithRedirect(auth, googleProvider);
+      // Try popup first (works on most browsers)
+      try {
+        setDebugInfo("Trying popup...");
+        const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+        if (result.user) {
+          setDebugInfo("Popup successful, handling user...");
+          await handleUserSignIn(result.user, true);
+          return;
+        }
+      } catch (popupError) {
+        // If popup fails (mobile, blocked), fall back to redirect
+        if (popupError instanceof FirebaseError) {
+          if (popupError.code === "auth/popup-blocked" ||
+            popupError.code === "auth/popup-closed-by-user" ||
+            popupError.code === "auth/cancelled-popup-request") {
+            setDebugInfo("Popup blocked/closed, trying redirect...");
+            await signInWithRedirect(auth, googleProvider);
+            return;
+          }
+          throw popupError;
+        }
+      }
     } catch (error) {
       console.error("Google Sign-In error:", error);
       setIsLoading(false);
 
       let description = "An unexpected error occurred. Please try again.";
       if (error instanceof FirebaseError) {
+        setDebugInfo(`Error: ${error.code}`);
         switch (error.code) {
           case "auth/unauthorized-domain":
-            description = "This domain is not authorized. Please add it to Firebase Console.";
+            description = "This domain is not authorized. Add commutecampanion.vercel.app to Firebase Console → Authentication → Settings → Authorized domains.";
             break;
           case "auth/operation-not-allowed":
             description = "Google Sign-In is not enabled. Enable it in Firebase Console.";
             break;
           case "auth/network-request-failed":
             description = "Network error. Please check your connection.";
+            break;
+          case "auth/internal-error":
+            description = "Internal error. Try clearing your cookies or using incognito mode.";
             break;
           default:
             description = error.message;
@@ -127,6 +164,9 @@ export default function LoginPage() {
           <Logo size="lg" />
           <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-400 text-sm">Signing you in...</p>
+          {process.env.NODE_ENV === "development" && debugInfo && (
+            <p className="text-gray-600 text-xs max-w-xs text-center">{debugInfo}</p>
+          )}
         </div>
       </div>
     );
@@ -176,7 +216,7 @@ export default function LoginPage() {
             {isLoading ? (
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                <span>Redirecting...</span>
+                <span>Signing in...</span>
               </div>
             ) : (
               <div className="flex items-center gap-3">
@@ -226,6 +266,11 @@ export default function LoginPage() {
           <Link href="#" className="text-emerald-400 hover:underline">Terms</Link> and{" "}
           <Link href="#" className="text-emerald-400 hover:underline">Privacy Policy</Link>
         </p>
+
+        {/* Debug info (only in dev) */}
+        {process.env.NODE_ENV === "development" && debugInfo && (
+          <p className="text-gray-600 text-xs mt-4">{debugInfo}</p>
+        )}
       </div>
     </div>
   );
