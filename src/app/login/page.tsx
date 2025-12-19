@@ -6,60 +6,87 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { auth, db, googleProvider } from "@/lib/firebase";
 import { FirebaseError } from "firebase/app";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithRedirect, getRedirectResult } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { ArrowLeft, Shield, Zap, Users } from "lucide-react";
+import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [checkingRedirect, setCheckingRedirect] = React.useState(true);
+
+  // Check for redirect result on page load
+  React.useEffect(() => {
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          const user = result.user;
+          const userDocRef = doc(db, "users", user.uid);
+          const userDoc = await getDoc(userDocRef);
+
+          if (!userDoc.exists()) {
+            await setDoc(userDocRef, {
+              email: user.email,
+              name: user.displayName || "",
+              photoURL: user.photoURL || "",
+              points: 0,
+              profileComplete: true,
+              createdAt: new Date().toISOString(),
+            });
+            toast({
+              title: "Welcome! 🎉",
+              description: "Your account has been created.",
+            });
+          } else {
+            toast({
+              title: "Welcome back! 👋",
+              description: "Signed in successfully.",
+            });
+          }
+
+          router.push("/dashboard");
+        }
+      } catch (error) {
+        console.error("Redirect result error:", error);
+        if (error instanceof FirebaseError) {
+          toast({
+            variant: "destructive",
+            title: "Sign In Failed",
+            description: error.message,
+          });
+        }
+      } finally {
+        setCheckingRedirect(false);
+      }
+    };
+
+    checkRedirectResult();
+  }, [router, toast]);
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
+
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      const userDocRef = doc(db, "users", user.uid);
-      const userDoc = await getDoc(userDocRef);
-
-      if (!userDoc.exists()) {
-        await setDoc(userDocRef, {
-          email: user.email,
-          name: user.displayName || "",
-          photoURL: user.photoURL || "",
-          points: 0,
-          profileComplete: true,
-          createdAt: new Date().toISOString(),
-        });
-        toast({
-          title: "Welcome! 🎉",
-          description: "Your account has been created.",
-        });
-      } else {
-        toast({
-          title: "Welcome back! 👋",
-          description: "Signed in successfully.",
-        });
-      }
-
-      router.push("/dashboard");
+      // Always use redirect - works on all devices and avoids COOP issues
+      await signInWithRedirect(auth, googleProvider);
+      // Page will redirect to Google, then back here
+      // The result will be handled by useEffect on page load
     } catch (error) {
       console.error("Google Sign-In error:", error);
+      setIsLoading(false);
+
       let description = "An unexpected error occurred. Please try again.";
       if (error instanceof FirebaseError) {
         switch (error.code) {
-          case "auth/popup-closed-by-user":
-            description = "Sign-in cancelled. Please try again.";
+          case "auth/unauthorized-domain":
+            description = "This domain is not authorized. Please add localhost to Firebase Console.";
             break;
-          case "auth/popup-blocked":
-            description = "Pop-up blocked. Please allow pop-ups.";
-            break;
-          case "auth/cancelled-popup-request":
-            description = "Sign-in was cancelled.";
+          case "auth/operation-not-allowed":
+            description = "Google Sign-In is not enabled. Enable it in Firebase Console.";
             break;
           default:
             description = error.message;
@@ -70,24 +97,34 @@ export default function LoginPage() {
         title: "Sign In Failed",
         description,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
+  // Show loading while checking redirect result
+  if (checkingRedirect) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0A0A0F]">
+        <div className="flex flex-col items-center gap-4">
+          <Logo size="lg" />
+          <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 text-sm">Checking sign-in status...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen-mobile flex flex-col bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 safe-all">
-      {/* Background decoration */}
+    <div className="min-h-screen flex flex-col bg-[#0A0A0F] safe-all">
+      {/* Gradient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-r from-emerald-400/20 to-cyan-500/20 rounded-full blur-[120px]" />
       </div>
 
       {/* Back button */}
-      <div className="relative p-4">
+      <div className="relative p-5">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-white/80 hover:text-white transition-colors touch-target"
+          className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back</span>
@@ -95,27 +132,27 @@ export default function LoginPage() {
       </div>
 
       {/* Main content */}
-      <div className="relative flex-1 flex flex-col items-center justify-center px-6 pb-8">
+      <div className="relative flex-1 flex flex-col items-center justify-center px-6 pb-10">
         {/* Logo and heading */}
         <div className="text-center mb-10">
-          <div className="inline-flex p-4 bg-white/20 backdrop-blur-sm rounded-3xl mb-6">
+          <div className="inline-flex p-4 bg-white/5 backdrop-blur-sm rounded-3xl mb-6 border border-white/10">
             <Logo size="lg" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Commute Companion
+            Welcome Back
           </h1>
-          <p className="text-white/80 text-sm">
-            Sign in to start your journey
+          <p className="text-gray-400 text-sm">
+            Sign in to continue your journey
           </p>
         </div>
 
         {/* Sign in card */}
-        <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl p-6">
+        <div className="w-full max-w-sm">
+          {/* Google Sign In Button */}
           <Button
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full h-14 text-base font-medium bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 shadow-sm rounded-2xl transition-all active:scale-[0.98]"
-            variant="outline"
+            className="w-full h-14 text-base font-medium bg-white hover:bg-gray-100 text-gray-900 rounded-2xl transition-all active:scale-[0.98] shadow-lg"
           >
             {isLoading ? (
               <div className="flex items-center gap-3">
@@ -135,34 +172,40 @@ export default function LoginPage() {
             )}
           </Button>
 
-          <div className="my-6 text-center">
-            <p className="text-xs text-gray-500">
-              Secure authentication powered by Google
-            </p>
+          <div className="my-8">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-[#0A0A0F] px-4 text-xs text-gray-500">Why sign in?</span>
+              </div>
+            </div>
           </div>
 
-          {/* Features */}
+          {/* Benefits */}
           <div className="space-y-3">
             {[
-              { icon: <Zap className="w-4 h-4" />, text: "Instant sign-in, no passwords" },
-              { icon: <Shield className="w-4 h-4" />, text: "Your data is always secure" },
-              { icon: <Users className="w-4 h-4" />, text: "Join 500+ students" },
-            ].map((feature, i) => (
-              <div key={i} className="flex items-center gap-3 text-gray-600 text-sm">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                  {feature.icon}
+              { icon: Zap, text: "Instant access, no passwords", color: "text-yellow-400" },
+              { icon: Shield, text: "Your data stays secure", color: "text-emerald-400" },
+              { icon: Users, text: "Join 500+ students", color: "text-cyan-400" },
+              { icon: Sparkles, text: "Earn rewards on every ride", color: "text-pink-400" },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                  <item.icon className={`w-5 h-5 ${item.color}`} />
                 </div>
-                <span>{feature.text}</span>
+                <span className="text-gray-400 text-sm">{item.text}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Terms */}
-        <p className="text-center text-white/60 text-xs mt-8 max-w-xs">
+        <p className="text-center text-gray-500 text-xs mt-10 max-w-xs">
           By signing in, you agree to our{" "}
-          <Link href="#" className="underline">Terms</Link> and{" "}
-          <Link href="#" className="underline">Privacy Policy</Link>
+          <Link href="#" className="text-emerald-400 hover:underline">Terms</Link> and{" "}
+          <Link href="#" className="text-emerald-400 hover:underline">Privacy Policy</Link>
         </p>
       </div>
     </div>
