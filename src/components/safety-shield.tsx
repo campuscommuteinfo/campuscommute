@@ -103,28 +103,42 @@ export default function SafetyShield() {
     const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
     const [isSosActive, setIsSosActive] = React.useState(false);
     const [sosCountdown, setSosCountdown] = React.useState(3);
+    const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
 
     React.useEffect(() => {
+        let isMounted = true;
+        let unsubscribeSnapshot: (() => void) | null = null;
+
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+            if (!isMounted) return;
+
             if (currentUser) {
                 setUser(currentUser);
                 const contactsColRef = collection(db, "users", currentUser.uid, "emergency_contacts");
-                const unsubscribeSnapshot = onSnapshot(contactsColRef, (snapshot) => {
+                unsubscribeSnapshot = onSnapshot(contactsColRef, (snapshot) => {
+                    if (!isMounted) return;
                     const contacts: EmergencyContact[] = [];
-                    snapshot.forEach(doc => {
-                        contacts.push({ id: doc.id, ...doc.data() } as EmergencyContact);
+                    snapshot.forEach(docSnap => {
+                        contacts.push({ id: docSnap.id, ...docSnap.data() } as EmergencyContact);
                     });
                     setEmergencyContacts(contacts);
                     setIsLoading(false);
+                }, (error) => {
+                    console.error("Error fetching contacts:", error);
+                    if (isMounted) setIsLoading(false);
                 });
-                return () => unsubscribeSnapshot();
             } else {
                 setUser(null);
+                setEmergencyContacts([]);
                 setIsLoading(false);
             }
         });
 
-        return () => unsubscribeAuth();
+        return () => {
+            isMounted = false;
+            unsubscribeAuth();
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+        };
     }, []);
 
     React.useEffect(() => {
@@ -146,6 +160,11 @@ export default function SafetyShield() {
     }, [isSosActive, sosCountdown, toast]);
 
     const handleSosClick = () => {
+        // Vibration feedback if supported
+        if ('vibrate' in navigator) {
+            navigator.vibrate(isSosActive ? 50 : [100, 50, 100]);
+        }
+
         if (!isSosActive) {
             setIsSosActive(true);
         } else {
@@ -164,13 +183,18 @@ export default function SafetyShield() {
     };
 
     const handleDeleteContact = async (contactId: string) => {
-        if (!user) return;
+        if (!user || isDeleting) return;
+
+        setIsDeleting(contactId);
         try {
             const contactDocRef = doc(db, "users", user.uid, "emergency_contacts", contactId);
             await deleteDoc(contactDocRef);
             toast({ title: "Contact Deleted" });
         } catch (error) {
+            console.error("Error deleting contact:", error);
             toast({ variant: "destructive", title: "Failed to delete" });
+        } finally {
+            setIsDeleting(null);
         }
     };
 

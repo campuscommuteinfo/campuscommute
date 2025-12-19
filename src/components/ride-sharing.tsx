@@ -120,6 +120,8 @@ export default function RideSharing() {
   const [isPostRideDialogOpen, setIsPostRideDialogOpen] = React.useState(false);
   const [showFilters, setShowFilters] = React.useState(false);
 
+  const [isJoining, setIsJoining] = React.useState<string | null>(null);
+
   const formMethods = useForm({
     defaultValues: {
       from: "",
@@ -129,24 +131,43 @@ export default function RideSharing() {
   });
 
   React.useEffect(() => {
+    let isMounted = true;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (isMounted) setUser(currentUser);
     });
+
     const q = query(collection(db, "rides"));
     const unsubscribeRides = onSnapshot(q, (querySnapshot) => {
+      if (!isMounted) return;
+
+      const now = new Date();
       const ridesData: Ride[] = [];
-      querySnapshot.forEach((doc) => {
-        ridesData.push({ id: doc.id, ...doc.data() } as Ride);
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        // Filter out past rides
+        const rideDate = new Date(data.rideDate);
+        if (rideDate >= now || isNaN(rideDate.getTime())) {
+          ridesData.push({ id: docSnap.id, ...data } as Ride);
+        }
       });
+
+      // Sort by date (nearest first)
+      ridesData.sort((a, b) => new Date(a.rideDate).getTime() - new Date(b.rideDate).getTime());
+
       setAllRides(ridesData);
       setFilteredRides(ridesData);
       setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching rides:", error);
+      if (isMounted) setIsLoading(false);
     });
 
     return () => {
+      isMounted = false;
       unsubscribeAuth();
       unsubscribeRides();
-    }
+    };
   }, []);
 
   const handleSearch = formMethods.handleSubmit(() => {
@@ -173,6 +194,9 @@ export default function RideSharing() {
       toast({ variant: "destructive", title: "This is your ride" });
       return;
     }
+    if (isJoining) return; // Prevent double submission
+
+    setIsJoining(ride.id);
 
     try {
       await addDoc(collection(db, "ride_requests"), {
@@ -180,6 +204,7 @@ export default function RideSharing() {
         driverId: ride.driverId,
         requesterId: user.uid,
         requesterName: user.displayName || "A Student",
+        requesterPhotoUrl: user.photoURL || "",
         status: "pending",
         createdAt: serverTimestamp(),
       });
@@ -189,7 +214,10 @@ export default function RideSharing() {
         description: `Waiting for ${ride.driverName} to accept`,
       });
     } catch (error) {
-      toast({ variant: "destructive", title: "Request Failed" });
+      console.error("Error sending request:", error);
+      toast({ variant: "destructive", title: "Request Failed", description: "Please try again" });
+    } finally {
+      setIsJoining(null);
     }
   };
 

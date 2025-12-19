@@ -114,21 +114,34 @@ export default function Profile() {
     const [editName, setEditName] = React.useState("");
 
     React.useEffect(() => {
+        let isMounted = true;
+
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+            if (!isMounted) return;
+
             if (currentUser) {
                 setUser(currentUser);
-                const userDocRef = doc(db, "users", currentUser.uid);
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                    setUserData(userDoc.data());
-                    setEditName(userDoc.data().name || currentUser.displayName || "");
+                try {
+                    const userDocRef = doc(db, "users", currentUser.uid);
+                    const userDoc = await getDoc(userDocRef);
+                    if (isMounted && userDoc.exists()) {
+                        setUserData(userDoc.data());
+                        setEditName(userDoc.data().name || currentUser.displayName || "");
+                    }
+                } catch (error) {
+                    console.error("Error fetching user data:", error);
                 }
             } else {
                 router.push('/login');
+                return;
             }
-            setIsLoading(false);
+            if (isMounted) setIsLoading(false);
         });
-        return () => unsubscribe();
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, [router]);
 
     const handleSignOut = async () => {
@@ -161,13 +174,19 @@ export default function Profile() {
         }
     };
 
-    const handleToggle = async (field: string, value: boolean) => {
+    const handleToggle = async (field: string, value: boolean | string) => {
         if (!user) return;
+
+        // Optimistic update
+        const previousValue = userData[field];
+        setUserData({ ...userData, [field]: value });
+
         try {
             const userDocRef = doc(db, "users", user.uid);
             await updateDoc(userDocRef, { [field]: value });
-            setUserData({ ...userData, [field]: value });
         } catch (error) {
+            // Revert on error
+            setUserData({ ...userData, [field]: previousValue });
             toast({ variant: "destructive", title: "Update Failed" });
         }
     };

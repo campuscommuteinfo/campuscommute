@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   title: 'Commute Companion',
@@ -44,6 +46,8 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased touch-manipulation" suppressHydrationWarning>
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

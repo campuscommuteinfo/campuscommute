@@ -111,21 +111,35 @@ export default function Rewards() {
   const { toast } = useToast();
 
   React.useEffect(() => {
+    let isMounted = true;
+    let unsubscribeSnapshot: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      if (!isMounted) return;
+
       if (currentUser) {
         setUser(currentUser);
         const userDocRef = doc(db, "users", currentUser.uid);
-        const unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
-          if (doc.exists()) {
-            setUserPoints(doc.data().points || 0);
+
+        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (!isMounted) return;
+          if (docSnap.exists()) {
+            setUserPoints(docSnap.data().points || 0);
           }
+        }, (error) => {
+          console.error("Error fetching user points:", error);
         });
-        return () => unsubscribeSnapshot();
       } else {
         setUser(null);
+        setUserPoints(0);
       }
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      isMounted = false;
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, []);
 
   const handleRedeem = async (reward: typeof rewards[0]) => {

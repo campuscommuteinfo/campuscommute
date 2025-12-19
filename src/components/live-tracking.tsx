@@ -94,15 +94,28 @@ export default function LiveTracking({ onVehicleSelect, selectedVehicle }: LiveT
     const [zoom, setZoom] = React.useState(14);
 
     React.useEffect(() => {
+        let isMounted = true;
+
         const unsubscribe = onSnapshot(collection(db, "vehicles"), (snapshot) => {
+            if (!isMounted) return;
+
             const fetchedVehicles: Vehicle[] = [];
-            snapshot.forEach((doc) => {
-                fetchedVehicles.push({ id: doc.id, ...doc.data() } as Vehicle);
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                // Validate vehicle data
+                if (data.position?.latitude && data.position?.longitude) {
+                    fetchedVehicles.push({ id: docSnap.id, ...data } as Vehicle);
+                }
             });
             setVehicles(fetchedVehicles);
+        }, (error) => {
+            console.error("Error fetching vehicles:", error);
         });
 
-        return () => unsubscribe();
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     React.useEffect(() => {

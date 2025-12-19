@@ -167,42 +167,66 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
   const pathname = usePathname();
   const router = useRouter();
 
+  // Track if we've already redirected to prevent loops
+  const hasRedirectedRef = React.useRef(false);
+
   React.useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    let unsubscribeSnapshot: (() => void) | null = null;
+    let isMounted = true;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+      if (!isMounted) return;
+
       if (currentUser) {
         setUser(currentUser);
         setUserPhoto(currentUser.photoURL || "");
         const userDocRef = doc(db, "users", currentUser.uid);
 
-        const unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+        unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
+          if (!isMounted) return;
           setIsLoading(false);
+
           if (docSnap.exists()) {
             const userData = docSnap.data();
             setPoints(userData.points || 0);
             setUserName(userData.name || currentUser.displayName || "User");
-            if (!userData.profileComplete && pathname !== "/dashboard/profile") {
+
+            // Redirect to profile if incomplete (but only once)
+            if (!userData.profileComplete && pathname !== "/dashboard/profile" && !hasRedirectedRef.current) {
+              hasRedirectedRef.current = true;
               router.replace("/dashboard/profile");
             }
           } else {
+            // Create user document if it doesn't exist
             setDoc(userDocRef, {
               points: 0,
               profileComplete: false,
               name: currentUser.displayName || "",
               email: currentUser.email || "",
               photoURL: currentUser.photoURL || "",
+              createdAt: new Date().toISOString(),
+            }).catch((error) => {
+              console.error("Error creating user document:", error);
             });
           }
+        }, (error) => {
+          console.error("Firestore snapshot error:", error);
+          if (isMounted) setIsLoading(false);
         });
-
-        return () => unsubscribeSnapshot();
       } else {
-        setIsLoading(false);
-        setUser(null);
-        router.push("/login");
+        if (isMounted) {
+          setIsLoading(false);
+          setUser(null);
+          router.push("/login");
+        }
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      isMounted = false;
+      unsubscribeAuth();
+      if (unsubscribeSnapshot) unsubscribeSnapshot();
+    };
   }, [router, pathname]);
 
   const handleSignOut = async () => {
@@ -226,13 +250,24 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
   const addPoints = async (amount: number, title: string, description: string) => {
     if (!user) return;
 
-    const newPoints = points + amount;
     const userDocRef = doc(db, "users", user.uid);
 
     try {
-      await updateDoc(userDocRef, { points: newPoints });
+      // Use transaction to prevent race conditions
+      const { runTransaction } = await import("firebase/firestore");
+      const newPoints = await runTransaction(db, async (transaction) => {
+        const userDoc = await transaction.get(userDocRef);
+        if (!userDoc.exists()) throw new Error("User document not found");
+
+        const currentPoints = userDoc.data().points || 0;
+        const updatedPoints = currentPoints + amount;
+        transaction.update(userDocRef, { points: updatedPoints });
+        return updatedPoints;
+      });
+
       toast({ title, description });
 
+      // Check for reward unlock
       if (points < 200 && newPoints >= 200) {
         toast({
           variant: "default",
