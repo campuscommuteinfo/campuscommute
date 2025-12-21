@@ -1,15 +1,12 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import {
   getAuth,
   GoogleAuthProvider,
-  browserLocalPersistence,
-  setPersistence,
-  indexedDBLocalPersistence,
-  initializeAuth
+  Auth
 } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -22,49 +19,20 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase - ensure single initialization
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+// Initialize Firebase App - ensure single initialization
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Auth with persistence set from the start
-// This is crucial for mobile redirect to work properly
-let auth: ReturnType<typeof getAuth>;
-
-if (typeof window !== 'undefined') {
-  // On client-side, initialize with indexedDB persistence (best for mobile)
-  try {
-    auth = initializeAuth(app, {
-      persistence: [indexedDBLocalPersistence, browserLocalPersistence]
-    });
-  } catch (e) {
-    // If already initialized, get existing instance
-    auth = getAuth(app);
-  }
-} else {
-  // On server-side, just get auth without persistence
-  auth = getAuth(app);
-}
-
-export { auth };
+// Initialize Auth - use standard getAuth (works with redirect)
+export const auth: Auth = getAuth(app);
 
 // Initialize Firestore
 export const db = getFirestore(app);
 
-// Configure Google provider with additional scopes if needed
+// Configure Google provider
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account' // Always show account selection
 });
-
-// Enable Firestore offline persistence (client-side only)
-if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('Firestore persistence failed: multiple tabs open.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('Firestore persistence not available in this browser.');
-    }
-  });
-}
 
 // Initialize Analytics (client-side only)
 let analytics: ReturnType<typeof getAnalytics> | null = null;
