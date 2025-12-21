@@ -20,34 +20,17 @@ import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-const AUTH_INIT_TIMEOUT = 8000; // Max time to wait for auth initialization
+const AUTH_INIT_TIMEOUT = 10000; // Max time to wait for auth initialization
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 
 /**
- * Detect if the current device is mobile
- */
-const isMobileDevice = (): boolean => {
-  if (typeof window === "undefined") return false;
-
-  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(
-    navigator.userAgent
-  );
-
-  const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const isSmallScreen = window.innerWidth <= 768;
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-
-  return mobileUA || (hasTouchScreen && isSmallScreen) || isStandalone;
-};
-
-/**
  * Navigate to dashboard - uses window.location for reliability
  */
 const navigateToDashboard = (): void => {
-  window.location.replace("/dashboard");
+  window.location.href = "/dashboard";
 };
 
 // ============================================================================
@@ -119,8 +102,12 @@ export default function LoginPage() {
         });
       }
 
-      log("→ Dashboard");
-      navigateToDashboard();
+      log("→ Redirecting to Dashboard...");
+
+      // Small delay to show the message, then navigate
+      setTimeout(() => {
+        navigateToDashboard();
+      }, 500);
 
     } catch (error) {
       console.error("Error processing user:", error);
@@ -134,11 +121,9 @@ export default function LoginPage() {
   }, [toast, log]);
 
   /**
-   * Main auth initialization - NO storage dependencies
-   * Relies purely on Firebase's getRedirectResult and onAuthStateChanged
+   * Main auth initialization
    */
   React.useEffect(() => {
-    // Prevent double initialization
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
@@ -148,57 +133,49 @@ export default function LoginPage() {
 
     const initializeAuth = async () => {
       log("Init started");
-      log(`Mobile: ${isMobileDevice()}`);
       log(`URL: ${window.location.href}`);
 
-      // STEP 1: Always check for redirect result first
-      // This is the ONLY way to get user after signInWithRedirect
       setAuthState({ status: "checking_redirect" });
 
+      // STEP 1: Check for redirect result
       try {
         log("Checking getRedirectResult...");
         const result = await getRedirectResult(auth);
 
         if (result?.user) {
-          log(`Redirect user: ${result.user.email}`);
+          log(`Redirect user found: ${result.user.email}`);
           if (isMounted) {
             await processAuthenticatedUser(result.user, true);
           }
-          return; // Done - user handled
+          return;
         }
         log("No redirect result");
       } catch (error) {
         if (error instanceof FirebaseError) {
           log(`Redirect error: ${error.code}`);
-          // auth/popup-closed-by-user is not really an error
-          if (error.code !== "auth/popup-closed-by-user") {
-            console.error("Redirect result error:", error);
-          }
         } else {
           log(`Redirect error: ${error}`);
         }
       }
 
-      // STEP 2: Set up auth state listener
-      // This catches: already signed in users, and any auth state changes
+      // STEP 2: Check current auth state
       log("Setting up onAuthStateChanged...");
 
       authUnsubscribe = onAuthStateChanged(auth, async (user) => {
         if (!isMounted) return;
 
-        // Clear init timeout since we got a response
         if (initTimeoutId) {
           clearTimeout(initTimeoutId);
           initTimeoutId = null;
         }
 
         if (user) {
-          log(`onAuthStateChanged: ${user.email}`);
+          log(`Auth state user: ${user.email}`);
           await processAuthenticatedUser(user, false);
         } else {
-          log("onAuthStateChanged: null");
+          log("Auth state: null");
 
-          // Double-check currentUser (sometimes it's set before listener fires)
+          // Double-check currentUser
           if (auth.currentUser) {
             log(`Found currentUser: ${auth.currentUser.email}`);
             await processAuthenticatedUser(auth.currentUser, false);
@@ -208,14 +185,11 @@ export default function LoginPage() {
         }
       });
 
-      // STEP 3: Safety timeout - if nothing happens, show login form
+      // STEP 3: Timeout fallback
       initTimeoutId = setTimeout(() => {
         if (isMounted && !hasNavigatedRef.current) {
-          log("Timeout - showing login");
-
-          // Final check for currentUser
+          log("Timeout reached");
           if (auth.currentUser) {
-            log(`Timeout found currentUser: ${auth.currentUser.email}`);
             processAuthenticatedUser(auth.currentUser, false);
           } else {
             setAuthState({ status: "unauthenticated" });
@@ -234,26 +208,17 @@ export default function LoginPage() {
   }, [processAuthenticatedUser, log]);
 
   /**
-   * Handle Google Sign In button click
+   * Handle Google Sign In - TRY POPUP FIRST (works on most mobile browsers now)
    */
   const handleGoogleSignIn = async () => {
     setAuthState({ status: "signing_in" });
-
-    const mobile = isMobileDevice();
-    log(`Sign in - Mobile: ${mobile}`);
+    log("Sign in clicked");
 
     try {
-      if (mobile) {
-        // MOBILE: Use redirect - page will navigate away
-        log("Using signInWithRedirect...");
-        await signInWithRedirect(auth, googleProvider);
-        // This line won't execute - browser redirects
-        return;
-      }
+      // ALWAYS try popup first - it works on most modern mobile browsers too
+      log("Trying popup...");
 
-      // DESKTOP: Try popup first
       try {
-        log("Trying signInWithPopup...");
         const result = await signInWithPopup(auth, googleProvider);
 
         if (result.user) {
@@ -263,17 +228,29 @@ export default function LoginPage() {
         }
       } catch (popupError) {
         if (popupError instanceof FirebaseError) {
-          const recoverableCodes = [
+          log(`Popup error: ${popupError.code}`);
+
+          // These errors mean we should try redirect
+          const shouldTryRedirect = [
             "auth/popup-blocked",
             "auth/popup-closed-by-user",
-            "auth/cancelled-popup-request"
-          ];
+            "auth/cancelled-popup-request",
+            "auth/operation-not-supported-in-this-environment"
+          ].includes(popupError.code);
 
-          if (recoverableCodes.includes(popupError.code)) {
-            log(`Popup failed: ${popupError.code}, using redirect...`);
-            await signInWithRedirect(auth, googleProvider);
-            return;
+          if (shouldTryRedirect) {
+            log("Popup failed, trying redirect...");
+
+            try {
+              await signInWithRedirect(auth, googleProvider);
+              // Page will redirect away
+              return;
+            } catch (redirectError) {
+              log(`Redirect error: ${redirectError}`);
+              throw redirectError;
+            }
           }
+
           throw popupError;
         }
         throw popupError;
@@ -284,11 +261,11 @@ export default function LoginPage() {
       let description = "An unexpected error occurred. Please try again.";
 
       if (error instanceof FirebaseError) {
-        log(`Error: ${error.code}`);
+        log(`Final error: ${error.code}`);
 
         switch (error.code) {
           case "auth/unauthorized-domain":
-            description = "This domain is not authorized for sign-in.";
+            description = "This domain is not authorized. Please contact support.";
             break;
           case "auth/operation-not-allowed":
             description = "Google Sign-In is not enabled.";
@@ -300,6 +277,7 @@ export default function LoginPage() {
             description = "Auth error. Try clearing browser data.";
             break;
           case "auth/user-cancelled":
+          case "auth/popup-closed-by-user":
             description = "Sign-in was cancelled.";
             break;
           default:
@@ -321,7 +299,6 @@ export default function LoginPage() {
   // RENDER
   // ============================================================================
 
-  // Loading/Redirect states - show spinner with debug log
   const isLoading = authState.status === "initializing" ||
     authState.status === "checking_redirect" ||
     authState.status === "authenticated" ||
@@ -330,8 +307,8 @@ export default function LoginPage() {
   if (isLoading) {
     const message = {
       initializing: "Loading...",
-      checking_redirect: "Completing sign in...",
-      authenticated: "Redirecting...",
+      checking_redirect: "Checking sign-in status...",
+      authenticated: "Redirecting to dashboard...",
       signing_in: "Signing in...",
     }[authState.status as string] || "Loading...";
 
@@ -342,7 +319,7 @@ export default function LoginPage() {
           <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-400 text-sm">{message}</p>
 
-          {/* Debug Log - Always visible for troubleshooting */}
+          {/* Debug Log */}
           <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full border border-gray-800">
             <p className="text-emerald-400 text-xs font-mono mb-2">Debug Log:</p>
             <div className="space-y-0.5 max-h-48 overflow-y-auto">
@@ -360,7 +337,6 @@ export default function LoginPage() {
     );
   }
 
-  // Error state
   if (authState.status === "error") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#0A0A0F] px-6">
@@ -374,7 +350,6 @@ export default function LoginPage() {
             Try Again
           </Button>
 
-          {/* Debug Log */}
           <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full max-w-sm border border-gray-800">
             <p className="text-red-400 text-xs font-mono mb-2">Debug Log:</p>
             {debugLog.map((msg, i) => (
@@ -386,15 +361,13 @@ export default function LoginPage() {
     );
   }
 
-  // Main login form (unauthenticated state)
+  // Main login form
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A0F] safe-all">
-      {/* Gradient background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-r from-emerald-400/20 to-cyan-500/20 rounded-full blur-[120px]" />
       </div>
 
-      {/* Back button */}
       <div className="relative p-5">
         <Link
           href="/"
@@ -405,9 +378,7 @@ export default function LoginPage() {
         </Link>
       </div>
 
-      {/* Main content */}
       <div className="relative flex-1 flex flex-col items-center justify-center px-6 pb-10">
-        {/* Logo and heading */}
         <div className="text-center mb-10">
           <div className="inline-flex p-4 bg-white/5 backdrop-blur-sm rounded-3xl mb-6 border border-white/10">
             <Logo size="lg" />
@@ -420,9 +391,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Sign in card */}
         <div className="w-full max-w-sm">
-          {/* Google Sign In Button */}
           <Button
             onClick={handleGoogleSignIn}
             className="w-full h-14 text-base font-medium bg-white hover:bg-gray-100 text-gray-900 rounded-2xl transition-all active:scale-[0.98] shadow-lg"
@@ -449,7 +418,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Benefits */}
           <div className="space-y-3">
             {[
               { icon: Zap, text: "Instant access, no passwords", color: "text-yellow-400" },
@@ -467,14 +435,12 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Terms */}
         <p className="text-center text-gray-500 text-xs mt-10 max-w-xs">
           By signing in, you agree to our{" "}
           <Link href="#" className="text-emerald-400 hover:underline">Terms</Link> and{" "}
           <Link href="#" className="text-emerald-400 hover:underline">Privacy Policy</Link>
         </p>
 
-        {/* Debug info - collapsible */}
         {debugLog.length > 0 && (
           <details className="mt-6 w-full max-w-sm">
             <summary className="text-gray-600 text-xs cursor-pointer">Show debug log</summary>
