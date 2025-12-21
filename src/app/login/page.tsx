@@ -6,11 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { auth, db, googleProvider } from "@/lib/firebase";
 import { FirebaseError } from "firebase/app";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, browserPopupRedirectResolver } from "firebase/auth";
+import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
+
+// Helper to detect mobile devices
+const isMobileDevice = (): boolean => {
+  if (typeof window === "undefined") return false;
+  
+  // Check for touch capability and screen size
+  const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isSmallScreen = window.innerWidth <= 768;
+  
+  // Check user agent for mobile patterns
+  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+  
+  return mobileUA || (hasTouchScreen && isSmallScreen);
+};
+
+// Session storage key to track redirect auth flow
+const REDIRECT_AUTH_KEY = "pendingGoogleRedirect";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,6 +41,11 @@ export default function LoginPage() {
   // Handle user after successful sign-in
   const handleUserSignIn = React.useCallback(async (user: any, isNewUser: boolean = false) => {
     try {
+      // Clear the redirect flag
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+      }
+
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
@@ -58,10 +82,19 @@ export default function LoginPage() {
     let isMounted = true;
 
     const checkAuth = async () => {
+      // Check if we're returning from a redirect auth flow
+      const isPendingRedirect = typeof window !== "undefined" && 
+        sessionStorage.getItem(REDIRECT_AUTH_KEY) === "true";
+      
+      if (isPendingRedirect) {
+        setDebugInfo("Detected pending redirect, checking result...");
+      }
+
       // First check redirect result (for returning from Google)
       try {
         setDebugInfo("Checking redirect result...");
-        const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+        // Use getRedirectResult without resolver for redirect flows
+        const result = await getRedirectResult(auth);
         if (result?.user && isMounted) {
           setDebugInfo("Got redirect result, handling user...");
           await handleUserSignIn(result.user, true);
@@ -69,6 +102,10 @@ export default function LoginPage() {
         }
       } catch (error) {
         console.error("Redirect result error:", error);
+        // Clear the redirect flag on error
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+        }
         if (error instanceof FirebaseError && error.code !== "auth/popup-closed-by-user") {
           setDebugInfo(`Redirect error: ${error.code}`);
         }
@@ -84,6 +121,10 @@ export default function LoginPage() {
         } else {
           setDebugInfo("No user found");
           setCheckingAuth(false);
+          // Clear redirect flag if no user after checking
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+          }
         }
       });
 
@@ -101,23 +142,41 @@ export default function LoginPage() {
     setIsLoading(true);
     setDebugInfo("Starting sign in...");
 
+    const isMobile = isMobileDevice();
+    setDebugInfo(`Device type: ${isMobile ? "mobile" : "desktop"}`);
+
     try {
-      // Try popup first (works on most browsers)
+      // On mobile, always use redirect (more reliable)
+      if (isMobile) {
+        setDebugInfo("Mobile detected, using redirect flow...");
+        // Set flag to indicate we're in redirect flow
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(REDIRECT_AUTH_KEY, "true");
+        }
+        await signInWithRedirect(auth, googleProvider);
+        // Note: This won't return - page will redirect
+        return;
+      }
+
+      // On desktop, try popup first
       try {
-        setDebugInfo("Trying popup...");
-        const result = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
+        setDebugInfo("Desktop detected, trying popup...");
+        const result = await signInWithPopup(auth, googleProvider);
         if (result.user) {
           setDebugInfo("Popup successful, handling user...");
           await handleUserSignIn(result.user, true);
           return;
         }
       } catch (popupError) {
-        // If popup fails (mobile, blocked), fall back to redirect
+        // If popup fails (blocked), fall back to redirect
         if (popupError instanceof FirebaseError) {
           if (popupError.code === "auth/popup-blocked" ||
             popupError.code === "auth/popup-closed-by-user" ||
             popupError.code === "auth/cancelled-popup-request") {
-            setDebugInfo("Popup blocked/closed, trying redirect...");
+            setDebugInfo("Popup blocked/closed, falling back to redirect...");
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem(REDIRECT_AUTH_KEY, "true");
+            }
             await signInWithRedirect(auth, googleProvider);
             return;
           }
@@ -127,6 +186,10 @@ export default function LoginPage() {
     } catch (error) {
       console.error("Google Sign-In error:", error);
       setIsLoading(false);
+      // Clear redirect flag on error
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+      }
 
       let description = "An unexpected error occurred. Please try again.";
       if (error instanceof FirebaseError) {
