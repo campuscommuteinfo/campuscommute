@@ -15,16 +15,16 @@ import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 // Helper to detect mobile devices
 const isMobileDevice = (): boolean => {
   if (typeof window === "undefined") return false;
-  
+
   // Check for touch capability and screen size
   const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   const isSmallScreen = window.innerWidth <= 768;
-  
+
   // Check user agent for mobile patterns
   const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
     navigator.userAgent
   );
-  
+
   return mobileUA || (hasTouchScreen && isSmallScreen);
 };
 
@@ -80,61 +80,80 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     let isMounted = true;
+    let unsubscribeAuth: (() => void) | null = null;
 
-    const checkAuth = async () => {
+    const handleRedirectAndAuth = async () => {
       // Check if we're returning from a redirect auth flow
-      const isPendingRedirect = typeof window !== "undefined" && 
+      const isPendingRedirect = typeof window !== "undefined" &&
         sessionStorage.getItem(REDIRECT_AUTH_KEY) === "true";
-      
+
       if (isPendingRedirect) {
         setDebugInfo("Detected pending redirect, checking result...");
       }
 
-      // First check redirect result (for returning from Google)
+      // First, try to get the redirect result (for mobile returning from Google)
       try {
-        setDebugInfo("Checking redirect result...");
-        // Use getRedirectResult without resolver for redirect flows
         const result = await getRedirectResult(auth);
         if (result?.user && isMounted) {
-          setDebugInfo("Got redirect result, handling user...");
+          setDebugInfo("Got redirect result with user, signing in...");
           await handleUserSignIn(result.user, true);
-          return;
+          return; // Exit early, user is handled
+        } else if (isPendingRedirect) {
+          setDebugInfo("Redirect detected but no result, checking auth state...");
         }
       } catch (error) {
         console.error("Redirect result error:", error);
-        // Clear the redirect flag on error
         if (typeof window !== "undefined") {
           sessionStorage.removeItem(REDIRECT_AUTH_KEY);
         }
-        if (error instanceof FirebaseError && error.code !== "auth/popup-closed-by-user") {
+        if (error instanceof FirebaseError) {
           setDebugInfo(`Redirect error: ${error.code}`);
         }
       }
 
-      // Then check current auth state
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Set up auth state listener - this will catch:
+      // 1. Users already signed in
+      // 2. Users who just completed redirect auth (auth state persisted)
+      unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
         if (!isMounted) return;
 
         if (user) {
-          setDebugInfo("User found via onAuthStateChanged");
-          await handleUserSignIn(user);
-        } else {
-          setDebugInfo("No user found");
-          setCheckingAuth(false);
-          // Clear redirect flag if no user after checking
+          setDebugInfo("User authenticated, redirecting to dashboard...");
+          // Clear redirect flag
           if (typeof window !== "undefined") {
             sessionStorage.removeItem(REDIRECT_AUTH_KEY);
           }
+          await handleUserSignIn(user, isPendingRedirect);
+        } else {
+          // No user found
+          if (isPendingRedirect) {
+            // We were expecting a user from redirect but didn't get one
+            // This might be a timing issue - wait a bit and check again
+            setDebugInfo("Waiting for auth state after redirect...");
+            setTimeout(() => {
+              if (isMounted && auth.currentUser) {
+                handleUserSignIn(auth.currentUser, true);
+              } else if (isMounted) {
+                setDebugInfo("No user after redirect, showing login");
+                setCheckingAuth(false);
+                sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+              }
+            }, 2000); // Wait 2 seconds for auth to settle
+          } else {
+            setDebugInfo("No user found");
+            setCheckingAuth(false);
+          }
         }
       });
-
-      return () => unsubscribe();
     };
 
-    checkAuth();
+    handleRedirectAndAuth();
 
     return () => {
       isMounted = false;
+      if (unsubscribeAuth) {
+        unsubscribeAuth();
+      }
     };
   }, [handleUserSignIn]);
 
