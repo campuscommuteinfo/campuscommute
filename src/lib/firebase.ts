@@ -1,7 +1,14 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider, browserLocalPersistence, setPersistence } from "firebase/auth";
+import { initializeApp, getApps } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  browserLocalPersistence,
+  setPersistence,
+  indexedDBLocalPersistence,
+  initializeAuth
+} from "firebase/auth";
 import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 
 // Your web app's Firebase configuration
@@ -15,38 +22,58 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const googleProvider = new GoogleAuthProvider();
+// Initialize Firebase - ensure single initialization
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Set auth persistence to LOCAL to survive page redirects (important for mobile)
+// Initialize Auth with persistence set from the start
+// This is crucial for mobile redirect to work properly
+let auth: ReturnType<typeof getAuth>;
+
 if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch((error) => {
-    console.warn('Failed to set auth persistence:', error);
+  // On client-side, initialize with indexedDB persistence (best for mobile)
+  try {
+    auth = initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+    });
+  } catch (e) {
+    // If already initialized, get existing instance
+    auth = getAuth(app);
+  }
+} else {
+  // On server-side, just get auth without persistence
+  auth = getAuth(app);
+}
+
+export { auth };
+
+// Initialize Firestore
+export const db = getFirestore(app);
+
+// Configure Google provider with additional scopes if needed
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account' // Always show account selection
+});
+
+// Enable Firestore offline persistence (client-side only)
+if (typeof window !== 'undefined') {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Firestore persistence failed: multiple tabs open.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Firestore persistence not available in this browser.');
+    }
   });
 }
 
-// Enable offline persistence
+// Initialize Analytics (client-side only)
+let analytics: ReturnType<typeof getAnalytics> | null = null;
 if (typeof window !== 'undefined') {
-  enableIndexedDbPersistence(db)
-    .catch((err) => {
-      if (err.code == 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled
-        // in one tab at a time.
-        console.warn('Firestore persistence failed: multiple tabs open.');
-      } else if (err.code == 'unimplemented') {
-        // The current browser does not support all of the
-        // features required to enable persistence
-        console.warn('Firestore persistence not available in this browser.');
-      }
-    });
-}
-
-let analytics;
-if (typeof window !== 'undefined') {
-  analytics = getAnalytics(app);
+  isSupported().then((supported) => {
+    if (supported) {
+      analytics = getAnalytics(app);
+    }
+  });
 }
 
 export { app, analytics };

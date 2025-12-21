@@ -1,55 +1,150 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 import { auth, db, googleProvider } from "@/lib/firebase";
 import { FirebaseError } from "firebase/app";
-import { signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from "firebase/auth";
+import {
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged,
+  User
+} from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 
-// Helper to detect mobile devices
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+const REDIRECT_FLAG_KEY = "google_auth_redirect_pending";
+const AUTH_CHECK_TIMEOUT = 5000; // Max time to wait for auth state
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Detect if the current device is mobile
+ * Uses multiple signals for reliability
+ */
 const isMobileDevice = (): boolean => {
   if (typeof window === "undefined") return false;
 
-  // Check for touch capability and screen size
-  const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const isSmallScreen = window.innerWidth <= 768;
-
-  // Check user agent for mobile patterns
-  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+  // Primary: User agent check (most reliable)
+  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS/i.test(
     navigator.userAgent
   );
 
-  return mobileUA || (hasTouchScreen && isSmallScreen);
+  // Secondary: Touch + small screen
+  const hasTouchScreen = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isSmallScreen = window.innerWidth <= 768;
+
+  // Tertiary: Check if it's a standalone PWA
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
+  return mobileUA || (hasTouchScreen && isSmallScreen) || isStandalone;
 };
 
-// Session storage key to track redirect auth flow
-const REDIRECT_AUTH_KEY = "pendingGoogleRedirect";
+/**
+ * Set redirect flag in localStorage (more reliable than sessionStorage on mobile)
+ */
+const setRedirectPending = (): void => {
+  try {
+    localStorage.setItem(REDIRECT_FLAG_KEY, Date.now().toString());
+  } catch (e) {
+    console.warn("Failed to set redirect flag:", e);
+  }
+};
 
+/**
+ * Check if we're returning from a redirect (within last 5 minutes)
+ */
+const isRedirectPending = (): boolean => {
+  try {
+    const timestamp = localStorage.getItem(REDIRECT_FLAG_KEY);
+    if (!timestamp) return false;
+
+    const elapsed = Date.now() - parseInt(timestamp, 10);
+    // Consider redirect valid for 5 minutes
+    return elapsed < 5 * 60 * 1000;
+  } catch (e) {
+    return false;
+  }
+};
+
+/**
+ * Clear the redirect flag
+ */
+const clearRedirectFlag = (): void => {
+  try {
+    localStorage.removeItem(REDIRECT_FLAG_KEY);
+  } catch (e) {
+    console.warn("Failed to clear redirect flag:", e);
+  }
+};
+
+/**
+ * Navigate to dashboard - uses window.location for reliability on mobile
+ */
+const navigateToDashboard = (): void => {
+  // Clear any pending flags before redirect
+  clearRedirectFlag();
+
+  // Use replace to prevent back button issues
+  window.location.replace("/dashboard");
+};
+
+// ============================================================================
+// AUTH STATE TYPES
+// ============================================================================
+type AuthState =
+  | { status: "loading" }
+  | { status: "checking_redirect" }
+  | { status: "authenticated"; user: User }
+  | { status: "unauthenticated" }
+  | { status: "error"; message: string };
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 export default function LoginPage() {
-  const router = useRouter();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [checkingAuth, setCheckingAuth] = React.useState(true);
-  const [debugInfo, setDebugInfo] = React.useState<string>("");
+  const [authState, setAuthState] = React.useState<AuthState>({ status: "loading" });
+  const [isSigningIn, setIsSigningIn] = React.useState(false);
+  const [debugLog, setDebugLog] = React.useState<string[]>([]);
 
-  // Handle user after successful sign-in
-  const handleUserSignIn = React.useCallback(async (user: any, isNewUser: boolean = false) => {
+  // Ref to track if we've already handled navigation
+  const hasNavigatedRef = React.useRef(false);
+
+  // Debug logger
+  const log = React.useCallback((message: string) => {
+    console.log(`[Auth] ${message}`);
+    setDebugLog(prev => [...prev.slice(-9), `${new Date().toLocaleTimeString()}: ${message}`]);
+  }, []);
+
+  /**
+   * Process authenticated user - create/update Firestore doc and navigate
+   */
+  const processAuthenticatedUser = React.useCallback(async (user: User, isNewSignIn: boolean = false) => {
+    // Prevent double navigation
+    if (hasNavigatedRef.current) {
+      log("Navigation already in progress, skipping...");
+      return;
+    }
+    hasNavigatedRef.current = true;
+
+    log(`Processing user: ${user.email}`);
+
     try {
-      // Clear the redirect flag
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(REDIRECT_AUTH_KEY);
-      }
-
       const userDocRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
+        log("Creating new user document...");
         await setDoc(userDocRef, {
           email: user.email,
           name: user.displayName || "",
@@ -58,202 +153,282 @@ export default function LoginPage() {
           profileComplete: true,
           createdAt: new Date().toISOString(),
         });
+
         toast({
           title: "Welcome! 🎉",
           description: "Your account has been created.",
         });
-      } else if (!isNewUser) {
+      } else if (isNewSignIn) {
         toast({
           title: "Welcome back! 👋",
           description: "Signed in successfully.",
         });
       }
 
-      // Use window.location for more reliable redirect on production
-      window.location.href = "/dashboard";
-    } catch (error) {
-      console.error("Error handling user:", error);
-      setDebugInfo(`Error: ${error}`);
-      setCheckingAuth(false);
-    }
-  }, [toast]);
+      log("Navigating to dashboard...");
+      navigateToDashboard();
 
+    } catch (error) {
+      console.error("Error processing user:", error);
+      hasNavigatedRef.current = false;
+      setAuthState({
+        status: "error",
+        message: "Failed to set up your account. Please try again."
+      });
+    }
+  }, [toast, log]);
+
+  /**
+   * Main auth initialization effect
+   * Handles: redirect result, existing auth state, and race conditions
+   */
   React.useEffect(() => {
     let isMounted = true;
-    let unsubscribeAuth: (() => void) | null = null;
+    let authUnsubscribe: (() => void) | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-    const handleRedirectAndAuth = async () => {
-      // Check if we're returning from a redirect auth flow
-      const isPendingRedirect = typeof window !== "undefined" &&
-        sessionStorage.getItem(REDIRECT_AUTH_KEY) === "true";
+    const initializeAuth = async () => {
+      const pendingRedirect = isRedirectPending();
+      log(`Init auth - Pending redirect: ${pendingRedirect}`);
 
-      if (isPendingRedirect) {
-        setDebugInfo("Detected pending redirect, checking result...");
+      if (pendingRedirect) {
+        setAuthState({ status: "checking_redirect" });
       }
 
-      // First, try to get the redirect result (for mobile returning from Google)
+      // STEP 1: Check for redirect result first (must be done before onAuthStateChanged)
       try {
+        log("Checking redirect result...");
         const result = await getRedirectResult(auth);
-        if (result?.user && isMounted) {
-          setDebugInfo("Got redirect result with user, signing in...");
-          await handleUserSignIn(result.user, true);
-          return; // Exit early, user is handled
-        } else if (isPendingRedirect) {
-          setDebugInfo("Redirect detected but no result, checking auth state...");
+
+        if (result?.user) {
+          log("Got user from redirect result!");
+          clearRedirectFlag();
+          if (isMounted) {
+            setAuthState({ status: "authenticated", user: result.user });
+            await processAuthenticatedUser(result.user, true);
+          }
+          return; // Exit early - user is handled
+        } else {
+          log("No user in redirect result");
         }
       } catch (error) {
-        console.error("Redirect result error:", error);
-        if (typeof window !== "undefined") {
-          sessionStorage.removeItem(REDIRECT_AUTH_KEY);
-        }
-        if (error instanceof FirebaseError) {
-          setDebugInfo(`Redirect error: ${error.code}`);
-        }
+        log(`Redirect result error: ${error instanceof FirebaseError ? error.code : error}`);
+        clearRedirectFlag();
+        // Don't return - continue to check auth state
       }
 
-      // Set up auth state listener - this will catch:
-      // 1. Users already signed in
-      // 2. Users who just completed redirect auth (auth state persisted)
-      unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      // STEP 2: Set up auth state listener
+      log("Setting up auth state listener...");
+
+      // Set a timeout to ensure we don't wait forever
+      timeoutId = setTimeout(() => {
+        if (isMounted && authState.status === "loading") {
+          log("Auth check timeout - showing login form");
+          setAuthState({ status: "unauthenticated" });
+          clearRedirectFlag();
+        }
+      }, AUTH_CHECK_TIMEOUT);
+
+      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
         if (!isMounted) return;
 
+        // Clear timeout since we got a response
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
         if (user) {
-          setDebugInfo("User authenticated, redirecting to dashboard...");
-          // Clear redirect flag
-          if (typeof window !== "undefined") {
-            sessionStorage.removeItem(REDIRECT_AUTH_KEY);
-          }
-          await handleUserSignIn(user, isPendingRedirect);
+          log(`Auth state: User found (${user.email})`);
+          clearRedirectFlag();
+          setAuthState({ status: "authenticated", user });
+          await processAuthenticatedUser(user, pendingRedirect);
         } else {
-          // No user found
-          if (isPendingRedirect) {
-            // We were expecting a user from redirect but didn't get one
-            // This might be a timing issue - wait a bit and check again
-            setDebugInfo("Waiting for auth state after redirect...");
-            setTimeout(() => {
-              if (isMounted && auth.currentUser) {
-                handleUserSignIn(auth.currentUser, true);
-              } else if (isMounted) {
-                setDebugInfo("No user after redirect, showing login");
-                setCheckingAuth(false);
-                sessionStorage.removeItem(REDIRECT_AUTH_KEY);
+          log("Auth state: No user");
+
+          // If we were expecting a redirect result but didn't get it,
+          // wait a bit more as Firebase might still be processing
+          if (pendingRedirect) {
+            log("Waiting extra time for redirect auth to settle...");
+
+            // Check if auth.currentUser becomes available
+            const checkInterval = setInterval(() => {
+              if (auth.currentUser) {
+                clearInterval(checkInterval);
+                if (isMounted) {
+                  log("Found user via currentUser check");
+                  clearRedirectFlag();
+                  setAuthState({ status: "authenticated", user: auth.currentUser });
+                  processAuthenticatedUser(auth.currentUser, true);
+                }
               }
-            }, 2000); // Wait 2 seconds for auth to settle
+            }, 500);
+
+            // Give up after 3 more seconds
+            setTimeout(() => {
+              clearInterval(checkInterval);
+              if (isMounted && !auth.currentUser) {
+                log("No user found after extended wait");
+                clearRedirectFlag();
+                setAuthState({ status: "unauthenticated" });
+              }
+            }, 3000);
           } else {
-            setDebugInfo("No user found");
-            setCheckingAuth(false);
+            setAuthState({ status: "unauthenticated" });
           }
         }
       });
     };
 
-    handleRedirectAndAuth();
+    initializeAuth();
 
     return () => {
       isMounted = false;
-      if (unsubscribeAuth) {
-        unsubscribeAuth();
-      }
+      if (authUnsubscribe) authUnsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [handleUserSignIn]);
+  }, [processAuthenticatedUser, log]);
 
+  /**
+   * Handle Google Sign In button click
+   */
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setDebugInfo("Starting sign in...");
+    setIsSigningIn(true);
 
-    const isMobile = isMobileDevice();
-    setDebugInfo(`Device type: ${isMobile ? "mobile" : "desktop"}`);
+    const mobile = isMobileDevice();
+    log(`Sign in clicked - Mobile: ${mobile}`);
 
     try {
-      // On mobile, always use redirect (more reliable)
-      if (isMobile) {
-        setDebugInfo("Mobile detected, using redirect flow...");
-        // Set flag to indicate we're in redirect flow
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem(REDIRECT_AUTH_KEY, "true");
-        }
+      if (mobile) {
+        // MOBILE: Always use redirect
+        log("Using redirect flow for mobile...");
+        setRedirectPending();
         await signInWithRedirect(auth, googleProvider);
-        // Note: This won't return - page will redirect
+        // Page will redirect - this code won't continue
         return;
       }
 
-      // On desktop, try popup first
+      // DESKTOP: Try popup first, fallback to redirect
       try {
-        setDebugInfo("Desktop detected, trying popup...");
+        log("Trying popup for desktop...");
         const result = await signInWithPopup(auth, googleProvider);
+
         if (result.user) {
-          setDebugInfo("Popup successful, handling user...");
-          await handleUserSignIn(result.user, true);
+          log("Popup successful!");
+          setAuthState({ status: "authenticated", user: result.user });
+          await processAuthenticatedUser(result.user, true);
           return;
         }
       } catch (popupError) {
-        // If popup fails (blocked), fall back to redirect
         if (popupError instanceof FirebaseError) {
-          if (popupError.code === "auth/popup-blocked" ||
-            popupError.code === "auth/popup-closed-by-user" ||
-            popupError.code === "auth/cancelled-popup-request") {
-            setDebugInfo("Popup blocked/closed, falling back to redirect...");
-            if (typeof window !== "undefined") {
-              sessionStorage.setItem(REDIRECT_AUTH_KEY, "true");
-            }
+          const recoverableCodes = [
+            "auth/popup-blocked",
+            "auth/popup-closed-by-user",
+            "auth/cancelled-popup-request"
+          ];
+
+          if (recoverableCodes.includes(popupError.code)) {
+            log(`Popup failed (${popupError.code}), falling back to redirect...`);
+            setRedirectPending();
             await signInWithRedirect(auth, googleProvider);
             return;
           }
           throw popupError;
         }
+        throw popupError;
       }
     } catch (error) {
-      console.error("Google Sign-In error:", error);
-      setIsLoading(false);
-      // Clear redirect flag on error
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem(REDIRECT_AUTH_KEY);
-      }
+      console.error("Sign-in error:", error);
+      setIsSigningIn(false);
+      clearRedirectFlag();
 
       let description = "An unexpected error occurred. Please try again.";
+
       if (error instanceof FirebaseError) {
-        setDebugInfo(`Error: ${error.code}`);
+        log(`Sign-in error: ${error.code}`);
+
         switch (error.code) {
           case "auth/unauthorized-domain":
-            description = "This domain is not authorized. Add commutecampanion.vercel.app to Firebase Console → Authentication → Settings → Authorized domains.";
+            description = "This domain is not authorized for sign-in. Please contact support.";
             break;
           case "auth/operation-not-allowed":
-            description = "Google Sign-In is not enabled. Enable it in Firebase Console.";
+            description = "Google Sign-In is not enabled. Please contact support.";
             break;
           case "auth/network-request-failed":
-            description = "Network error. Please check your connection.";
+            description = "Network error. Please check your connection and try again.";
             break;
           case "auth/internal-error":
-            description = "Internal error. Try clearing your cookies or using incognito mode.";
+            description = "Authentication error. Please try again or clear your browser data.";
+            break;
+          case "auth/user-cancelled":
+            description = "Sign-in was cancelled.";
             break;
           default:
-            description = error.message;
+            description = `Sign-in failed: ${error.message}`;
         }
       }
+
       toast({
         variant: "destructive",
         title: "Sign In Failed",
         description,
       });
+
+      setAuthState({ status: "unauthenticated" });
     }
   };
 
-  // Show loading while checking auth state
-  if (checkingAuth) {
+  // ============================================================================
+  // RENDER
+  // ============================================================================
+
+  // Loading states
+  if (authState.status === "loading" || authState.status === "checking_redirect" || authState.status === "authenticated") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#0A0A0F]">
         <div className="flex flex-col items-center gap-4">
           <Logo size="lg" />
           <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Signing you in...</p>
-          {process.env.NODE_ENV === "development" && debugInfo && (
-            <p className="text-gray-600 text-xs max-w-xs text-center">{debugInfo}</p>
+          <p className="text-gray-400 text-sm">
+            {authState.status === "checking_redirect"
+              ? "Completing sign in..."
+              : authState.status === "authenticated"
+                ? "Redirecting to dashboard..."
+                : "Loading..."}
+          </p>
+          {/* Debug info - always show on mobile for now */}
+          {debugLog.length > 0 && (
+            <div className="mt-4 p-3 bg-gray-900 rounded-lg max-w-xs">
+              <p className="text-gray-500 text-xs font-mono mb-2">Debug Log:</p>
+              {debugLog.map((msg, i) => (
+                <p key={i} className="text-gray-600 text-xs font-mono">{msg}</p>
+              ))}
+            </div>
           )}
         </div>
       </div>
     );
   }
 
+  // Error state
+  if (authState.status === "error") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0A0A0F] px-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Logo size="lg" />
+          <p className="text-red-400 text-sm">{authState.message}</p>
+          <Button
+            onClick={() => setAuthState({ status: "unauthenticated" })}
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Main login form
   return (
     <div className="min-h-screen flex flex-col bg-[#0A0A0F] safe-all">
       {/* Gradient background */}
@@ -292,10 +467,10 @@ export default function LoginPage() {
           {/* Google Sign In Button */}
           <Button
             onClick={handleGoogleSignIn}
-            disabled={isLoading}
+            disabled={isSigningIn}
             className="w-full h-14 text-base font-medium bg-white hover:bg-gray-100 text-gray-900 rounded-2xl transition-all active:scale-[0.98] shadow-lg"
           >
-            {isLoading ? (
+            {isSigningIn ? (
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
                 <span>Signing in...</span>
@@ -349,9 +524,14 @@ export default function LoginPage() {
           <Link href="#" className="text-emerald-400 hover:underline">Privacy Policy</Link>
         </p>
 
-        {/* Debug info (only in dev) */}
-        {process.env.NODE_ENV === "development" && debugInfo && (
-          <p className="text-gray-600 text-xs mt-4">{debugInfo}</p>
+        {/* Debug info */}
+        {debugLog.length > 0 && (
+          <div className="mt-6 p-3 bg-gray-900/50 rounded-lg max-w-xs w-full">
+            <p className="text-gray-500 text-xs font-mono mb-2">Debug:</p>
+            {debugLog.slice(-5).map((msg, i) => (
+              <p key={i} className="text-gray-600 text-xs font-mono truncate">{msg}</p>
+            ))}
+          </div>
         )}
       </div>
     </div>
