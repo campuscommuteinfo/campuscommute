@@ -1,8 +1,8 @@
 # 🚌 Commute Companion
 
-**Your Smart Campus Ride-Pooling Solution**
+**AI-Powered Campus Ride-Pooling Platform for Students**
 
-Commute Companion is a modern, AI-powered transportation platform designed specifically for students in Knowledge Park, Greater Noida. It connects daily commuters to share rides, split fares, and travel affordably with verified co-travellers.
+Commute Companion is a modern, mobile-first transportation platform designed specifically for students in Knowledge Park, Greater Noida. It connects daily commuters to share rides, track buses in real-time, and travel affordably with verified co-travellers.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16.1-black?style=flat-square&logo=next.js)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)
@@ -13,21 +13,16 @@ Commute Companion is a modern, AI-powered transportation platform designed speci
 
 ---
 
-## 📊 Production Readiness Assessment
+## 🌟 Key Highlights
 
-### Overall Score: **8.5/10** - Ready for Beta Launch ✅
-
-| Category | Score | Status |
-|----------|-------|--------|
-| **Core Features** | 9/10 | ✅ Complete |
-| **Mobile Optimization** | 9/10 | ✅ Complete |
-| **Authentication** | 9/10 | ✅ Google OAuth Working |
-| **Race Condition Handling** | 9/10 | ✅ All Fixed |
-| **Error Handling** | 8/10 | ✅ Comprehensive |
-| **Database Security** | 7/10 | ⚠️ Rules Ready, Deploy Needed |
-| **AI Features** | 7/10 | ⚠️ Requires Gemini API Key |
-| **Real Data** | 5/10 | ⚠️ Currently Mocked |
-| **Payment Integration** | 0/10 | ❌ Not Implemented |
+| Feature | Description |
+|---------|-------------|
+| 🗺️ **Live Tracking** | Real-time GPS tracking with Google Maps integration |
+| 🚗 **Ride Sharing** | Peer-to-peer ride matching with driver/passenger system |
+| 🤖 **AI Intelligence** | Gemini 2.0-powered crowd predictions & delay explanations |
+| 🎮 **Gamification** | Points-based rewards with redeemable vouchers |
+| 🛡️ **Safety First** | Emergency SOS, trip sharing, emergency contacts |
+| 📱 **Mobile-First** | Responsive design with PWA-ready features |
 
 ---
 
@@ -36,74 +31,98 @@ Commute Companion is a modern, AI-powered transportation platform designed speci
 ```
 campus-commute/
 ├── src/
-│   ├── app/                    # Next.js App Router pages
-│   │   ├── dashboard/          # Main dashboard & sub-pages
-│   │   │   ├── page.tsx        # Home with live tracking
-│   │   │   ├── ride-sharing/   # Find & post rides
-│   │   │   ├── rewards/        # Points & redemption
-│   │   │   ├── safety/         # Emergency contacts & SOS
-│   │   │   ├── profile/        # User profile management
-│   │   │   └── my-rides/       # Redeemed vouchers
-│   │   ├── login/              # Google authentication
-│   │   ├── page.tsx            # Landing page
-│   │   ├── layout.tsx          # Root layout with metadata
-│   │   └── globals.css         # Global styles & CSS variables
-│   ├── components/             # React components
-│   │   ├── ui/                 # 34 Radix UI primitives (shadcn/ui)
-│   │   ├── commute-dashboard.tsx     # Main dashboard wrapper
-│   │   ├── live-tracking.tsx         # Google Maps integration
-│   │   ├── ride-sharing.tsx          # Ride matching system
-│   │   ├── rewards.tsx               # Points & redemption
-│   │   ├── safety-shield.tsx         # SOS & emergency contacts
-│   │   ├── profile.tsx               # User settings
-│   │   ├── vehicle-card.tsx          # AI-powered vehicle info
-│   │   ├── notification-bell.tsx     # Ride request notifications
-│   │   ├── post-ride-dialog.tsx      # Create new ride
-│   │   ├── my-free-rides.tsx         # Voucher management
+│   ├── app/                          # Next.js App Router
+│   │   ├── page.tsx                  # Landing page (416 lines)
+│   │   ├── layout.tsx                # Root layout with metadata
+│   │   ├── globals.css               # Global styles & CSS variables
+│   │   ├── login/
+│   │   │   └── page.tsx              # Google OAuth login (458 lines)
+│   │   └── dashboard/                # Protected dashboard area
+│   │       ├── page.tsx              # Home with live tracking
+│   │       ├── layout.tsx            # Dashboard wrapper with nav
+│   │       ├── ride-sharing/         # Find & post rides
+│   │       ├── rewards/              # Points & redemption
+│   │       ├── safety/               # Emergency SOS & contacts
+│   │       ├── profile/              # User profile management
+│   │       └── my-rides/             # Redeemed vouchers
+│   │
+│   ├── components/                   # React components (47 files)
+│   │   ├── ui/                       # 34 Radix UI primitives (shadcn/ui)
+│   │   │   ├── button.tsx            # Button variants
+│   │   │   ├── card.tsx              # Card components
+│   │   │   ├── dialog.tsx            # Modal dialogs
+│   │   │   ├── form.tsx              # Form utilities
+│   │   │   ├── toast.tsx             # Toast notifications
+│   │   │   └── ... (29 more)         # Full shadcn/ui library
+│   │   │
+│   │   ├── commute-dashboard.tsx     # Main dashboard wrapper (408 lines)
+│   │   ├── live-tracking.tsx         # Google Maps integration (274 lines)
+│   │   ├── ride-sharing.tsx          # Ride matching system (348 lines)
+│   │   ├── rewards.tsx               # Points & redemption (284 lines)
+│   │   ├── safety-shield.tsx         # SOS & emergency contacts (335 lines)
+│   │   ├── profile.tsx               # User settings (360 lines)
+│   │   ├── vehicle-card.tsx          # AI-powered vehicle info (303 lines)
+│   │   ├── notification-bell.tsx     # Ride request notifications (181 lines)
+│   │   ├── post-ride-dialog.tsx      # Create new ride (234 lines)
+│   │   ├── my-free-rides.tsx         # Voucher management (166 lines)
 │   │   ├── crowd-report-dialog.tsx   # Report crowd levels
 │   │   ├── add-emergency-contact-dialog.tsx
 │   │   └── logo.tsx                  # Brand logo component
-│   ├── ai/                     # Google Genkit AI flows
-│   │   ├── genkit.ts           # Genkit configuration (Gemini 2.0)
+│   │
+│   ├── ai/                           # Google Genkit AI
+│   │   ├── genkit.ts                 # Genkit configuration (Gemini 2.0 Flash)
+│   │   ├── dev.ts                    # Development server
 │   │   └── flows/
-│   │       ├── predict-bus-crowd-levels.ts
-│   │       └── explain-bus-delays.ts
-│   ├── lib/                    # Utilities & configuration
-│   │   ├── firebase.ts         # Firebase client setup
-│   │   ├── types.ts            # TypeScript interfaces
-│   │   ├── bus-stops.ts        # Route stop data
-│   │   └── utils.ts            # Helper functions
-│   └── hooks/                  # Custom React hooks
-│       ├── use-toast.ts        # Toast notifications
-│       └── use-mobile.tsx      # Responsive detection
-├── docs/
-│   └── blueprint.md            # Original project specification
-├── public/                     # Static assets
-├── firestore.rules             # Database security rules
-├── firebase.json               # Firebase configuration
-├── next.config.ts              # Next.js configuration
-├── tailwind.config.ts          # Tailwind CSS configuration
-└── package.json                # Dependencies & scripts
+│   │       ├── predict-bus-crowd-levels.ts  # Crowd prediction AI
+│   │       └── explain-bus-delays.ts        # Delay explanation AI
+│   │
+│   ├── lib/                          # Utilities & configuration
+│   │   ├── firebase.ts               # Firebase client setup
+│   │   ├── types.ts                  # TypeScript interfaces
+│   │   ├── bus-stops.ts              # Route stop data (3 routes)
+│   │   └── utils.ts                  # Helper functions (cn utility)
+│   │
+│   └── hooks/                        # Custom React hooks
+│       ├── use-toast.ts              # Toast notifications
+│       └── use-mobile.tsx            # Responsive detection
+│
+├── public/                           # Static assets
+├── firestore.rules                   # Database security rules
+├── firebase.json                     # Firebase configuration
+├── next.config.ts                    # Next.js configuration
+├── tailwind.config.ts                # Tailwind CSS configuration
+├── tsconfig.json                     # TypeScript configuration
+├── components.json                   # shadcn/ui configuration
+└── package.json                      # Dependencies & scripts
 ```
 
 ---
 
-## ✨ Core Features
+## ✨ Features Deep Dive
 
 ### 🗺️ Live Vehicle Tracking
+
 Real-time GPS tracking system with interactive Google Maps integration.
 
 | Feature | Implementation |
 |---------|----------------|
-| **Interactive Map** | Google Maps via `@vis.gl/react-google-maps` |
-| **Vehicle Markers** | Color-coded pins (Bus/Cab) with crowd indicators |
+| **Interactive Map** | `@vis.gl/react-google-maps` v1.1.0 |
+| **Vehicle Markers** | Color-coded pins (Bus 🟢/Cab 🔵) with crowd indicators |
 | **Bus Stop Display** | Route-specific stops with position markers |
-| **Map Controls** | Zoom, center, layer toggle, locate me |
+| **Map Controls** | Zoom, center, layer toggle, locate me button |
 | **Real-time Updates** | Firestore `onSnapshot` listeners |
 | **Offline Support** | IndexedDB persistence enabled |
 | **Vehicle Selection** | Tap marker → AI-powered info card |
 
+**Supported Routes:**
+- **73A**: Sharda University → GNIOT → Knowledge Park II Metro → Pari Chowk → Alpha I
+- **100B**: Galgotias University → Yamuna Expressway → Knowledge Park II Metro → Jagdishpur
+- **45**: Pari Chowk → Ansal Plaza → Sector 37 → Botanical Garden Metro
+
+---
+
 ### 🚗 Ride Sharing System
+
 Complete peer-to-peer ride-sharing with driver/passenger matching.
 
 | Feature | Implementation |
@@ -111,67 +130,102 @@ Complete peer-to-peer ride-sharing with driver/passenger matching.
 | **Post Rides** | Create rides with date, seats, price, preferences |
 | **Find Rides** | Real-time list with filters (upcoming only) |
 | **Join Requests** | Request system with driver approval |
-| **Notifications** | Real-time bell with accept/decline |
-| **Preferences** | Gender matching, smoking, music allowed |
+| **Notifications** | Real-time bell with accept/decline actions |
+| **Preferences** | Gender matching, smoking, music options |
 | **Validation** | Zod schemas for all form inputs |
-| **Double-Submit Protection** | `isJoining` / `isProcessing` states |
+| **Race Protection** | `isJoining` / `isProcessing` states |
 
-### 🤖 AI-Powered Intelligence (Google Gemini 2.0)
-Two AI flows built with Google Genkit for intelligent predictions.
+**Form Validation Schema:**
+```typescript
+const rideSchema = z.object({
+  from: z.string().min(2, "Please enter a starting location."),
+  to: z.string().min(2, "Please enter a destination."),
+  rideDate: z.date({ required_error: "Please select a date and time." }),
+  seats: z.coerce.number().min(1, "Must offer at least one seat."),
+  price: z.coerce.number().min(0, "Price cannot be negative."),
+});
+```
+
+---
+
+### 🤖 AI-Powered Intelligence
+
+Two AI flows built with **Google Genkit 1.14** + **Gemini 2.0 Flash** for intelligent predictions.
 
 #### Crowd Level Prediction
 ```typescript
-Input: { routeId, time, dayOfWeek, academicCalendarEvents? }
-Output: { crowdLevel: "Green" | "Yellow" | "Red", explanation: string }
+// Input
+{ routeId: "73A", time: "8:30 AM", dayOfWeek: "Monday", academicCalendarEvents?: "Exams" }
+
+// Output
+{ crowdLevel: "Green" | "Yellow" | "Red", explanation: "Expected moderate crowd..." }
 ```
-- Considers class schedules (9 AM - 5 PM)
+
+**Intelligence Factors:**
+- Class schedules (9 AM - 5 PM)
 - Peak hour awareness (8-10 AM, 4-6 PM)
-- Weekend/event adjustments
+- Weekend/holiday adjustments
+- Academic calendar events
 
 #### Bus Delay Explanation
 ```typescript
-Input: { route, stop }
-Output: { explanation: string }
+// Input
+{ route: "73A", stop: "Sharda University Gate 1" }
+
+// Output
+{ explanation: "The delay may be due to heavy traffic..." }
 ```
-- Context-aware reasoning
-- Traffic, weather, event factors
-- Student-friendly explanations
+
+**Context Factors:**
+- Traffic patterns
+- Weather conditions
+- Special events
+- Time of day
+
+---
 
 ### 🎮 Gamified Rewards System
+
 Points-based engagement with transaction-safe redemption.
 
-| Reward | Points | Category |
-|--------|--------|----------|
-| ₹50 Ride Voucher | 200 | Transport |
-| Amazon Gift Card | 500 | Shopping |
-| Blinkit Voucher | 400 | Groceries |
-| Canteen Coupon | 300 | Campus |
+| Reward | Points | Category | Icon |
+|--------|--------|----------|------|
+| ₹50 Ride Voucher | 200 | Transport | 🎫 |
+| Amazon Gift Card | 500 | Shopping | 🛒 |
+| Blinkit Voucher | 400 | Groceries | 🛒 |
+| Canteen Coupon | 300 | Campus | 🍴 |
 
 **Technical Implementation:**
 - Firestore transactions for atomic point updates
 - Optimistic UI updates with rollback on failure
-- Real-time point synchronization
+- Real-time point synchronization via `onSnapshot`
 - QR code display for vouchers (placeholder)
 
+---
+
 ### 🛡️ Safety Features
+
 Comprehensive safety toolkit for secure commuting.
 
 | Feature | Description |
 |---------|-------------|
-| **Emergency SOS** | Countdown timer with vibration feedback |
+| **Emergency SOS** | 5-second countdown timer with vibration feedback |
 | **Emergency Contacts** | Add/delete contacts with quick dial |
 | **Trip Sharing** | Share journey via Web Share API |
-| **Female-Only Option** | Gender preference filtering |
-| **Delete Protection** | Prevents accidental double-deletes |
+| **Female-Only Option** | Gender preference filtering for rides |
+| **Delete Protection** | `isDeleting` state prevents accidental double-deletes |
+
+---
 
 ### 👤 User Profile Management
+
 Complete profile system with preference management.
 
 | Feature | Implementation |
 |---------|----------------|
 | **Google Sign-In** | Popup with redirect fallback |
 | **Display Name** | Editable with save |
-| **Newsletter Toggle** | Optimistic UI updates |
+| **Newsletter Toggle** | Optimistic UI updates + rollback |
 | **Account Deletion** | Full data removal with confirmation |
 | **Avatar Display** | Google profile photo or initials |
 
@@ -180,11 +234,12 @@ Complete profile system with preference management.
 ## 🛠️ Tech Stack
 
 ### Frontend
+
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | **Next.js** | 16.1 | React framework with App Router & Turbopack |
-| **React** | 19 | UI library with latest features |
-| **TypeScript** | 5 | Type-safe development |
+| **React** | 19.2 | UI library with latest features |
+| **TypeScript** | 5.x | Type-safe development |
 | **TailwindCSS** | 3.4 | Utility-first styling |
 | **Radix UI** | Latest | 34 accessible component primitives |
 | **Lucide React** | 0.475 | Beautiful icon set |
@@ -194,6 +249,7 @@ Complete profile system with preference management.
 | **Embla Carousel** | 8.6 | Touch-friendly carousels |
 
 ### Backend & Services
+
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | **Firebase Auth** | 11.9 | Google OAuth with popup/redirect |
@@ -204,64 +260,12 @@ Complete profile system with preference management.
 | **Gemini 2.0 Flash** | Latest | LLM for predictions |
 
 ### DevOps & Monitoring
+
 | Technology | Purpose |
 |------------|---------|
 | **Vercel Analytics** | Performance monitoring |
 | **Vercel Speed Insights** | Core Web Vitals |
 | **Turbopack** | Fast development builds |
-
----
-
-## 🔧 Code Quality Audit (December 2024)
-
-### ✅ Race Condition Fixes
-All components audited and fixed for concurrent state issues:
-
-| Component | Issue | Solution |
-|-----------|-------|----------|
-| `commute-dashboard.tsx` | Nested snapshot cleanup | `isMounted` flag + proper cleanup |
-| `commute-dashboard.tsx` | Points update race | Firestore transactions |
-| `commute-dashboard.tsx` | Redirect loop | Ref to track single redirect |
-| `notification-bell.tsx` | Toast on every render | Ref to track previous count |
-| `notification-bell.tsx` | Double-click accept | `isProcessing` state |
-| `rewards.tsx` | Nested return in useEffect | Proper cleanup pattern |
-| `profile.tsx` | State update after unmount | `isMounted` flag |
-| `profile.tsx` | Toggle not optimistic | Optimistic update + rollback |
-| `ride-sharing.tsx` | Past rides shown | Filter by date |
-| `ride-sharing.tsx` | Double join request | `isJoining` state |
-| `safety-shield.tsx` | Double delete contact | `isDeleting` state |
-| `live-tracking.tsx` | Invalid vehicle data | Position validation |
-| `post-ride-dialog.tsx` | Time input crash | Null check for date |
-| `login/page.tsx` | Redirect not working | `onAuthStateChanged` listener |
-
-### ✅ Cleanup Pattern Used
-All `useEffect` hooks follow this safe pattern:
-
-```typescript
-React.useEffect(() => {
-  let isMounted = true;
-  let unsubscribeSnapshot: (() => void) | null = null;
-
-  const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-    if (!isMounted) return;
-    // ... logic
-  });
-
-  return () => {
-    isMounted = false;
-    unsubscribeAuth();
-    if (unsubscribeSnapshot) unsubscribeSnapshot();
-  };
-}, []);
-```
-
-### ✅ Edge Cases Handled
-- **Empty states**: All lists show appropriate empty UI
-- **Loading states**: Skeleton loaders during fetch
-- **Error handling**: try-catch on all Firestore operations
-- **Null checks**: Optional chaining for user data
-- **Input validation**: Zod schemas for all forms
-- **Past data filtering**: Rides sorted by date, expired excluded
 
 ---
 
@@ -278,7 +282,7 @@ React.useEffect(() => {
 | **Dark Background** | `#0A0A0F` |
 | **Primary Color** | Indigo `#4F46E5` |
 | **Accent Color** | Purple `#9333EA` |
-| **Font Family** | Poppins |
+| **Font Family** | Poppins (400, 500, 600, 700) |
 
 ### Navigation Pattern
 
@@ -309,13 +313,86 @@ React.useEffect(() => {
 /* Safe areas for notched phones */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-all { padding: env(safe-area-inset-top) env(safe-area-inset-right) 
+                      env(safe-area-inset-bottom) env(safe-area-inset-left); }
 
 /* Full viewport height (accounts for mobile browsers) */
-.min-h-screen-mobile { min-height: 100dvh; }
+.min-h-screen-mobile { min-height: 100vh; min-height: 100dvh; }
 
 /* Touch feedback */
 .touch-active:active { opacity: 0.7; transform: scale(0.95); }
 ```
+
+### Custom Animations
+
+```css
+@keyframes slide-up { from { transform: translateY(100%); opacity: 0; } 
+                      to { transform: translateY(0); opacity: 1; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in { from { transform: scale(0.9); opacity: 0; } 
+                      to { transform: scale(1); opacity: 1; } }
+```
+
+---
+
+## 🔧 Code Quality
+
+### ✅ Race Condition Fixes
+
+All components audited and fixed for concurrent state issues:
+
+| Component | Issue | Solution |
+|-----------|-------|----------|
+| `commute-dashboard.tsx` | Nested snapshot cleanup | `isMounted` flag + proper cleanup |
+| `commute-dashboard.tsx` | Points update race | Firestore transactions |
+| `commute-dashboard.tsx` | Redirect loop | Ref to track single redirect |
+| `notification-bell.tsx` | Toast on every render | Ref to track previous count |
+| `notification-bell.tsx` | Double-click accept | `isProcessing` state |
+| `rewards.tsx` | Nested return in useEffect | Proper cleanup pattern |
+| `profile.tsx` | State update after unmount | `isMounted` flag |
+| `profile.tsx` | Toggle not optimistic | Optimistic update + rollback |
+| `ride-sharing.tsx` | Past rides shown | Filter by date |
+| `ride-sharing.tsx` | Double join request | `isJoining` state |
+| `safety-shield.tsx` | Double delete contact | `isDeleting` state |
+| `live-tracking.tsx` | Invalid vehicle data | Position validation |
+| `post-ride-dialog.tsx` | Time input crash | Null check for date |
+| `login/page.tsx` | Redirect not working | `onAuthStateChanged` listener |
+
+### ✅ Cleanup Pattern
+
+All `useEffect` hooks follow this safe pattern:
+
+```typescript
+React.useEffect(() => {
+  let isMounted = true;
+  let unsubscribe: (() => void) | null = null;
+
+  const init = async () => {
+    if (!isMounted) return;
+    // ... setup logic
+  };
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    if (!isMounted) return;
+    // ... auth logic
+  });
+
+  return () => {
+    isMounted = false;
+    unsubscribeAuth();
+    if (unsubscribe) unsubscribe();
+  };
+}, []);
+```
+
+### ✅ Edge Cases Handled
+
+- **Empty states**: All lists show appropriate empty UI
+- **Loading states**: Skeleton loaders during fetch
+- **Error handling**: try-catch on all Firestore operations
+- **Null checks**: Optional chaining for user data
+- **Input validation**: Zod schemas for all forms
+- **Past data filtering**: Rides sorted by date, expired excluded
 
 ---
 
@@ -352,15 +429,15 @@ npm run dev
 
 ### Available Scripts
 
-```bash
-npm run dev          # Start dev server with Turbopack (port 9002)
-npm run build        # Production build
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run typecheck    # TypeScript type checking
-npm run genkit:dev   # Start Genkit AI dev server
-npm run genkit:watch # Genkit with hot reload
-```
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start dev server with Turbopack (port 9002) |
+| `npm run build` | Production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | TypeScript type checking |
+| `npm run genkit:dev` | Start Genkit AI dev server |
+| `npm run genkit:watch` | Genkit with hot reload |
 
 ---
 
@@ -406,7 +483,6 @@ firebase deploy --only firestore:rules
 ### 3. Security Rules Summary
 
 ```javascript
-// firestore.rules
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -414,15 +490,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth.uid == userId;
       
-      // Emergency contacts subcollection
       match /emergency_contacts/{contactId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write, delete: if request.auth.uid == userId;
       }
     }
     
     // Vehicles: Read-only for authenticated users
     match /vehicles/{vehicleId} {
       allow read: if request.auth != null;
+    }
+    
+    // Vehicle Reports: Create-only
+    match /vehicle_reports/{reportId} {
+      allow create: if request.auth != null;
     }
     
     // Rides: Any authenticated user can read/create
@@ -525,11 +605,22 @@ service cloud.firestore {
 }
 ```
 
+#### `vehicle_reports/{reportId}`
+```typescript
+{
+  vehicleId: string;
+  reportType: string;
+  crowdLevel?: string;
+  createdAt: Timestamp;
+}
+```
+
 ---
 
 ## 🗺️ Roadmap
 
 ### ✅ Completed (v1.0)
+
 - [x] Google Sign-In (popup + redirect fallback)
 - [x] Mobile-first responsive design
 - [x] Race condition fixes across all components
@@ -541,8 +632,12 @@ service cloud.firestore {
 - [x] Comprehensive error handling
 - [x] Offline persistence (IndexedDB)
 - [x] Dark theme landing page
+- [x] 34 shadcn/ui components
+- [x] Vercel Analytics & Speed Insights
+- [x] PWA-ready metadata
 
 ### 🔜 Coming Soon (v1.1)
+
 - [ ] Push notifications for ride updates
 - [ ] Payment integration (UPI/Razorpay)
 - [ ] Real-time chat between riders
@@ -551,17 +646,39 @@ service cloud.firestore {
 - [ ] Real GPS vehicle data integration
 
 ### 📋 Backlog
+
 - [ ] Route optimization AI
 - [ ] Carbon footprint tracking
 - [ ] University ID verification
 - [ ] Split fare calculator
-- [ ] Multi-language support
+- [ ] Multi-language support (Hindi, English)
+- [ ] Driver rating system
+- [ ] Scheduled rides
 
-### Known Limitations
-- Vehicle data is currently mocked
-- QR codes for vouchers are placeholder
-- Bus stops are pre-defined (not dynamic)
-- No payment processing
+### ⚠️ Known Limitations
+
+| Limitation | Status |
+|------------|--------|
+| Vehicle data is currently mocked | Planned for v1.1 |
+| QR codes for vouchers are placeholder | Planned |
+| Bus stops are pre-defined (not dynamic) | By design |
+| No payment processing | Planned for v1.1 |
+| AI requires Gemini API key | Optional feature |
+
+---
+
+## 📊 Project Stats
+
+| Metric | Value |
+|--------|-------|
+| **Total Components** | 47 files |
+| **UI Components** | 34 shadcn/ui primitives |
+| **Custom Components** | 13 feature components |
+| **Total Lines of Code** | ~5,000+ |
+| **AI Flows** | 2 (crowd prediction, delay explanation) |
+| **Firestore Collections** | 6 |
+| **Bus Routes** | 3 |
+| **Reward Types** | 4 |
 
 ---
 
@@ -576,11 +693,13 @@ Contributions are welcome! Please follow these steps:
 5. **Open** a Pull Request
 
 ### Code Style
+
 - TypeScript strict mode
 - Functional components with hooks
 - Tailwind CSS for styling
 - Zod for validation
 - Proper cleanup in useEffect
+- `isMounted` pattern for async operations
 
 ---
 
@@ -608,6 +727,7 @@ This project is developed as a **Final Year Project** at Sharda University, Know
 - **Vercel** - Hosting & analytics
 - **Radix UI** - Accessible component primitives
 - **shadcn/ui** - Component inspiration
+- **Lucide** - Beautiful icon set
 
 ---
 

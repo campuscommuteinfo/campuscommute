@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
-    User,
+    User as UserIcon,
     LogOut,
     ChevronRight,
     BadgeCheck,
@@ -28,7 +28,7 @@ import {
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
-import { onAuthStateChanged, signOut, deleteUser } from "firebase/auth";
+import { onAuthStateChanged, signOut, deleteUser, User as FirebaseUser } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +42,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import NotificationSettings from "@/components/notification-settings";
 
 // Menu item component
 const MenuItem = ({
@@ -107,8 +108,15 @@ const ToggleItem = ({
 export default function Profile() {
     const { toast } = useToast();
     const router = useRouter();
-    const [user, setUser] = React.useState<any>(null);
-    const [userData, setUserData] = React.useState<any>({});
+    const [user, setUser] = React.useState<FirebaseUser | null>(null);
+    const [userData, setUserData] = React.useState<{
+        name?: string;
+        points?: number;
+        genderPreference?: string;
+        isSmokingAllowed?: boolean;
+        isMusicAllowed?: boolean;
+        [key: string]: unknown;
+    }>({});
     const [isLoading, setIsLoading] = React.useState(true);
     const [isEditing, setIsEditing] = React.useState(false);
     const [editName, setEditName] = React.useState("");
@@ -304,7 +312,10 @@ export default function Profile() {
                 <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                     <h2 className="font-semibold text-gray-800 dark:text-white">Settings</h2>
                 </div>
-                <MenuItem icon={Bell} label="Notifications" onClick={() => toast({ title: "Coming Soon" })} />
+                {/* Push Notifications */}
+                <div className="border-b border-gray-100 dark:border-gray-700">
+                    <NotificationSettings />
+                </div>
                 <MenuItem icon={Shield} label="Privacy & Security" onClick={() => toast({ title: "Coming Soon" })} />
                 <MenuItem icon={HelpCircle} label="Help & Support" onClick={() => toast({ title: "Coming Soon" })} />
                 <MenuItem icon={FileText} label="Terms & Conditions" onClick={() => toast({ title: "Coming Soon" })} />

@@ -188,6 +188,11 @@ export default function VehicleCard({ vehicle, addPoints, onClose }: VehicleCard
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-4 h-4 text-indigo-500" />
                 <span className="text-sm font-semibold text-gray-800 dark:text-white">AI Predictions</span>
+                {crowdPrediction?.confidence && (
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {crowdPrediction.confidence}% confident
+                  </span>
+                )}
               </div>
 
               {isLoadingPrediction ? (
@@ -205,14 +210,66 @@ export default function VehicleCard({ vehicle, addPoints, onClose }: VehicleCard
                   </p>
                 </div>
               ) : crowdPrediction && (
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-gray-600 dark:text-gray-400">Predicted Crowd</span>
-                    <CrowdBadge level={crowdPrediction.crowdLevel} />
+                <div className="space-y-3">
+                  {/* Main Prediction Card */}
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Predicted Crowd</span>
+                      <CrowdBadge level={crowdPrediction.crowdLevel} />
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                      {crowdPrediction.explanation}
+                    </p>
+
+                    {/* Wait Time & Confidence */}
+                    {(crowdPrediction.estimatedWaitTime || crowdPrediction.confidence) && (
+                      <div className="flex items-center gap-4 mt-2 pt-2 border-t border-indigo-200 dark:border-indigo-700">
+                        {crowdPrediction.estimatedWaitTime && (
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-indigo-500" />
+                            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                              ~{crowdPrediction.estimatedWaitTime} min wait
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                    {crowdPrediction.explanation}
-                  </p>
+
+                  {/* XAI Factors - Shows WHY this prediction was made */}
+                  {crowdPrediction.factors && crowdPrediction.factors.length > 0 && (
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Info className="w-3 h-3 text-gray-500" />
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Key Factors</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {crowdPrediction.factors.map((factor, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 bg-white dark:bg-gray-600 rounded-full text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-500"
+                          >
+                            {factor}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendation */}
+                  {crowdPrediction.recommendation && (
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3 flex items-start gap-2">
+                      <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Award className="w-3 h-3 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-green-700 dark:text-green-300 block">Tip</span>
+                        <p className="text-xs text-green-600 dark:text-green-400">
+                          {crowdPrediction.recommendation}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

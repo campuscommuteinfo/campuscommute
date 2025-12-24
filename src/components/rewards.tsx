@@ -3,13 +3,14 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gift, Ticket, ShoppingCart, Star, Utensils, ChevronRight } from "lucide-react";
+import { Gift, Ticket, ShoppingCart, Star, Utensils } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot, runTransaction, collection, serverTimestamp } from "firebase/firestore";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { redeemReward } from "@/app/actions/rewardsActions";
 
 const rewards = [
   {
@@ -105,7 +106,7 @@ const RewardCard = ({
 
 export default function Rewards() {
   const [userPoints, setUserPoints] = React.useState(0);
-  const [user, setUser] = React.useState<any>(null);
+  const [user, setUser] = React.useState<User | null>(null);
   const [isRedeeming, setIsRedeeming] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<"rewards" | "history">("rewards");
   const { toast } = useToast();
@@ -155,29 +156,21 @@ export default function Rewards() {
     setIsRedeeming(reward.title);
 
     try {
-      const userDocRef = doc(db, "users", user.uid);
-      const vouchersCollectionRef = collection(db, "redeemed_vouchers");
+      // Use secure server action instead of client-side transaction
+      const result = await redeemReward(user.uid, reward.title, reward.points);
 
-      await runTransaction(db, async (transaction) => {
-        const userDoc = await transaction.get(userDocRef);
-        if (!userDoc.exists()) throw "User not found";
-
-        const newPoints = (userDoc.data().points || 0) - reward.points;
-        if (newPoints < 0) throw "Insufficient points";
-
-        transaction.update(userDocRef, { points: newPoints });
-        transaction.set(doc(vouchersCollectionRef), {
-          userId: user.uid,
-          title: reward.title,
-          points: reward.points,
-          redeemedAt: serverTimestamp(),
+      if (result.success) {
+        toast({
+          title: "🎉 Redeemed!",
+          description: `You got ${reward.title}. New balance: ${result.newPoints} pts`,
         });
-      });
-
-      toast({
-        title: "🎉 Redeemed!",
-        description: `You got ${reward.title}`,
-      });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed",
+          description: result.error || "Please try again"
+        });
+      }
     } catch (error) {
       toast({ variant: "destructive", title: "Failed", description: "Please try again" });
     } finally {

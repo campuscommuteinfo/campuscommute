@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapPin, Bus, Clock, Users, TrendingUp, ChevronRight, Navigation } from "lucide-react";
+import { MapPin, Bus, Clock, Users, TrendingUp, ChevronRight, Navigation, Sparkles } from "lucide-react";
 import LiveTracking from "@/components/live-tracking";
 import { type Vehicle } from "@/lib/types";
 import VehicleCard from "@/components/vehicle-card";
+import XAIDashboard from "@/components/xai-dashboard";
 import Link from "next/link";
 
 // Stat card component
@@ -54,9 +55,11 @@ const RecentRideCard = ({ route, time, status }: { route: string; time: string; 
 
 export default function DashboardPage() {
   const [selectedVehicle, setSelectedVehicle] = React.useState<Vehicle | null>(null);
+  const [showXAI, setShowXAI] = React.useState(false);
 
   const handleAddPoints = (amount: number, title: string, description: string) => {
-    console.log("Points added:", amount, title, description);
+    // TODO: Implement actual points addition via server action
+    // This is currently a placeholder - points are managed in CommuteDashboard
   };
 
   return (
@@ -103,6 +106,31 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* XAI Dashboard Toggle & Component */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowXAI(!showXAI)}
+          className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl text-white shadow-lg active:scale-[0.98] transition-transform"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold">AI Insights</p>
+              <p className="text-white/80 text-xs">See predictions & explanations</p>
+            </div>
+          </div>
+          <ChevronRight className={`w-5 h-5 transition-transform ${showXAI ? 'rotate-90' : ''}`} />
+        </button>
+
+        {showXAI && (
+          <div className="animate-slide-up">
+            <XAIDashboard routeId="73A" />
+          </div>
+        )}
+      </div>
+
       {/* Recent Activity */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
@@ -146,3 +174,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

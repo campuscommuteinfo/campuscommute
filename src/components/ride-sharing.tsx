@@ -116,7 +116,7 @@ export default function RideSharing() {
   const [allRides, setAllRides] = React.useState<Ride[]>([]);
   const [filteredRides, setFilteredRides] = React.useState<Ride[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [user, setUser] = React.useState<any>(null);
+  const [user, setUser] = React.useState<import("firebase/auth").User | null>(null);
   const [isPostRideDialogOpen, setIsPostRideDialogOpen] = React.useState(false);
   const [showFilters, setShowFilters] = React.useState(false);
 

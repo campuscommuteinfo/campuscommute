@@ -8,6 +8,7 @@ import { auth, db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { cn } from "@/lib/utils";
+import { QRCodeSVG } from "qrcode.react";
 
 interface RedeemedRide {
     id: string;
@@ -45,9 +46,17 @@ const VoucherCard = ({ ride }: { ride: RedeemedRide }) => {
 
                 {showQR ? (
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center">
-                        <div className="w-32 h-32 mx-auto bg-white rounded-lg flex items-center justify-center mb-3">
-                            <QrCode className="w-20 h-20 text-gray-300" />
+                        <div className="w-36 h-36 mx-auto bg-white rounded-lg flex items-center justify-center mb-3 p-2">
+                            <QRCodeSVG
+                                value={`commute-companion:voucher:${ride.id}:${ride.title}`}
+                                size={128}
+                                level="H"
+                                includeMargin={false}
+                                bgColor="#ffffff"
+                                fgColor="#1f2937"
+                            />
                         </div>
+                        <p className="text-xs text-gray-500 mb-1 font-mono">ID: {ride.id.slice(0, 8).toUpperCase()}</p>
                         <p className="text-xs text-gray-500 mb-3">Show this to the conductor</p>
                         <Button
                             variant="outline"
@@ -75,11 +84,9 @@ const VoucherCard = ({ ride }: { ride: RedeemedRide }) => {
 export default function MyFreeRides() {
     const [redeemedRides, setRedeemedRides] = React.useState<RedeemedRide[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
-    const [user, setUser] = React.useState<any>(null);
 
     React.useEffect(() => {
         const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
             if (currentUser) {
                 const q = query(collection(db, "redeemed_vouchers"), where("userId", "==", currentUser.uid));
                 const unsubscribeSnapshot = onSnapshot(q, (querySnapshot) => {

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import AddEmergencyContactDialog from "./add-emergency-contact-dialog";
 import {
@@ -97,7 +97,7 @@ const ContactCard = ({
 
 export default function SafetyShield() {
     const { toast } = useToast();
-    const [user, setUser] = React.useState<any>(null);
+    const [user, setUser] = React.useState<User | null>(null);
     const [emergencyContacts, setEmergencyContacts] = React.useState<EmergencyContact[]>([]);
     const [isLoading, setIsLoading] = React.useState(true);
     const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);

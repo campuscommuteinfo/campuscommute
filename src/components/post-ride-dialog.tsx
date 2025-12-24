@@ -25,12 +25,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Sparkles, Loader2, TrendingUp, Info } from "lucide-react";
 import { Calendar } from "./ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from 'date-fns';
 import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { suggestRideFare, SuggestRideFareOutput } from "@/ai/flows/suggest-ride-fare";
 
 interface PostRideDialogProps {
   open: boolean;
@@ -48,6 +49,10 @@ const rideSchema = z.object({
 export default function PostRideDialog({ open, onOpenChange }: PostRideDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [fareSuggestion, setFareSuggestion] = React.useState<SuggestRideFareOutput | null>(null);
+  const [isLoadingFare, setIsLoadingFare] = React.useState(false);
+  const [showFareDetails, setShowFareDetails] = React.useState(false);
+
   const form = useForm<z.infer<typeof rideSchema>>({
     resolver: zodResolver(rideSchema),
     defaultValues: {
@@ -57,6 +62,41 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
       price: 50,
     },
   });
+
+  // Watch form values for AI suggestion
+  const fromValue = form.watch("from");
+  const toValue = form.watch("to");
+  const dateValue = form.watch("rideDate");
+  const seatsValue = form.watch("seats");
+
+  // Debounced fare suggestion
+  React.useEffect(() => {
+    if (fromValue?.length >= 2 && toValue?.length >= 2 && dateValue) {
+      const timer = setTimeout(async () => {
+        setIsLoadingFare(true);
+        try {
+          const suggestion = await suggestRideFare({
+            origin: fromValue,
+            destination: toValue,
+            time: format(dateValue, 'h:mm a'),
+            dayOfWeek: format(dateValue, 'EEEE'),
+            seatsAvailable: seatsValue || 1,
+          });
+          setFareSuggestion(suggestion);
+          // Auto-fill the suggested fare
+          if (suggestion.suggestedFare) {
+            form.setValue("price", suggestion.suggestedFare);
+          }
+        } catch (error) {
+          console.error("Failed to get fare suggestion:", error);
+        } finally {
+          setIsLoadingFare(false);
+        }
+      }, 1000); // Debounce 1 second
+
+      return () => clearTimeout(timer);
+    }
+  }, [fromValue, toValue, dateValue, seatsValue, form]);
 
   const onSubmit = async (values: z.infer<typeof rideSchema>) => {
     const user = auth.currentUser;
@@ -86,6 +126,9 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
         genderPreference: userData?.genderPreference || "any",
         isSmokingAllowed: userData?.isSmokingAllowed || false,
         isMusicAllowed: userData?.isMusicAllowed === false ? false : true,
+        // AI fare data for analytics
+        aiFareSuggested: fareSuggestion?.suggestedFare || null,
+        fareAccepted: fareSuggestion ? values.price === fareSuggestion.suggestedFare : null,
       });
 
       toast({
@@ -93,6 +136,7 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
         description: "Your ride has been successfully posted for other students to see.",
       });
       form.reset();
+      setFareSuggestion(null);
       onOpenChange(false);
     } catch (error) {
       console.error("Error posting ride: ", error);
@@ -108,7 +152,7 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Offer a Ride</DialogTitle>
           <DialogDescription>
@@ -195,6 +239,87 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
                 </FormItem>
               )}
             />
+
+            {/* AI Fare Suggestion */}
+            {(isLoadingFare || fareSuggestion) && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">AI Fare Suggestion</span>
+                </div>
+
+                {isLoadingFare ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Calculating optimal fare...
+                  </div>
+                ) : fareSuggestion && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">
+                          ₹{fareSuggestion.suggestedFare}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Fair range: ₹{fareSuggestion.fareRange.min} - ₹{fareSuggestion.fareRange.max}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setShowFareDetails(!showFareDetails)}
+                      >
+                        <Info className="w-3 h-3 mr-1" />
+                        {showFareDetails ? 'Less' : 'Details'}
+                      </Button>
+                    </div>
+
+                    {showFareDetails && (
+                      <div className="mt-3 pt-3 border-t border-indigo-200 dark:border-indigo-700 space-y-2">
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          <div className="flex justify-between">
+                            <span>Base fare:</span>
+                            <span>₹{fareSuggestion.breakdown.baseFare}</span>
+                          </div>
+                          {fareSuggestion.breakdown.peakMultiplier > 1 && (
+                            <div className="flex justify-between text-amber-600">
+                              <span>Peak hour ({fareSuggestion.breakdown.peakMultiplier}x):</span>
+                              <span>+₹{Math.round(fareSuggestion.breakdown.baseFare * (fareSuggestion.breakdown.peakMultiplier - 1))}</span>
+                            </div>
+                          )}
+                          {fareSuggestion.breakdown.eventAdjustment > 0 && (
+                            <div className="flex justify-between text-orange-600">
+                              <span>Event surge:</span>
+                              <span>+₹{fareSuggestion.breakdown.eventAdjustment}</span>
+                            </div>
+                          )}
+                          {fareSuggestion.breakdown.recurringDiscount > 0 && (
+                            <div className="flex justify-between text-green-600">
+                              <span>Recurring discount:</span>
+                              <span>-₹{fareSuggestion.breakdown.recurringDiscount}</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 italic">
+                          {fareSuggestion.competitiveAnalysis}
+                        </p>
+                        <div className="bg-indigo-100 dark:bg-indigo-800/30 rounded-lg p-2">
+                          <div className="flex items-start gap-1.5">
+                            <TrendingUp className="w-3 h-3 text-indigo-600 mt-0.5" />
+                            <p className="text-xs text-indigo-700 dark:text-indigo-300">
+                              {fareSuggestion.tip}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -231,3 +356,4 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
     </Dialog>
   );
 }
+

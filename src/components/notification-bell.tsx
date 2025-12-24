@@ -111,10 +111,10 @@ export default function NotificationBell() {
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="size-5" />
+                <Button variant="ghost" size="icon" className="relative" aria-label="View notifications">
+                    <Bell className="size-5" aria-hidden="true" />
                     {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex items-center justify-center h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold">
+                        <span className="absolute -top-1 -right-1 flex items-center justify-center h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold" aria-label={`${unreadCount} pending requests`}>
                             {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                     )}
@@ -155,8 +155,9 @@ export default function NotificationBell() {
                                                 className="h-8 w-8 text-green-500 hover:text-green-600 hover:bg-green-50"
                                                 onClick={() => handleAccept(req.id)}
                                                 disabled={isProcessing === req.id}
+                                                aria-label={`Accept request from ${req.requesterName}`}
                                             >
-                                                <Check className="size-4" />
+                                                <Check className="size-4" aria-hidden="true" />
                                             </Button>
                                             <Button
                                                 size="icon"
@@ -164,8 +165,9 @@ export default function NotificationBell() {
                                                 className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
                                                 onClick={() => handleDecline(req.id)}
                                                 disabled={isProcessing === req.id}
+                                                aria-label={`Decline request from ${req.requesterName}`}
                                             >
-                                                <X className="size-4" />
+                                                <X className="size-4" aria-hidden="true" />
                                             </Button>
                                         </div>
                                     </div>

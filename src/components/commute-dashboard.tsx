@@ -159,7 +159,7 @@ const MenuItem = ({
 
 export default function CommuteDashboard({ children }: { children: React.ReactNode }) {
   const [points, setPoints] = React.useState(0);
-  const [user, setUser] = React.useState<any>(null);
+  const [user, setUser] = React.useState<import("firebase/auth").User | null>(null);
   const [userName, setUserName] = React.useState("User");
   const [userPhoto, setUserPhoto] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(true);

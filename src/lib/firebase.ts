@@ -4,7 +4,9 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 import {
   getAuth,
   GoogleAuthProvider,
-  Auth
+  Auth,
+  browserSessionPersistence,
+  setPersistence
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -24,6 +26,14 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Initialize Auth - use standard getAuth (works with redirect)
 export const auth: Auth = getAuth(app);
+
+// Set session persistence - user must login each browser session
+// This disables auto-login across browser restarts
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserSessionPersistence).catch((error) => {
+    console.error('Error setting auth persistence:', error);
+  });
+}
 
 // Initialize Firestore
 export const db = getFirestore(app);
@@ -45,3 +55,4 @@ if (typeof window !== 'undefined') {
 }
 
 export { app, analytics };
+

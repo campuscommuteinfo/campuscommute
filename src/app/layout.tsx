@@ -4,8 +4,28 @@ import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
-  title: 'Commute Companion',
-  description: 'AI-powered commute platform for Knowledge Park students',
+  metadataBase: new URL('https://commute-companion.vercel.app'),
+  title: {
+    default: 'Commute Companion',
+    template: '%s | Commute Companion',
+  },
+  description: 'AI-powered campus ride sharing & live bus tracking for Knowledge Park, Greater Noida',
+  keywords: ['ride sharing', 'campus commute', 'bus tracking', 'greater noida', 'knowledge park', 'carpooling'],
+  authors: [{ name: 'Commute Companion Team' }],
+  creator: 'Commute Companion',
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    url: 'https://commute-companion.vercel.app',
+    siteName: 'Commute Companion',
+    title: 'Commute Companion - AI-Powered Campus Ride Sharing',
+    description: 'Share rides, track buses, earn rewards. The smart way to commute in Greater Noida.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Commute Companion',
+    description: 'AI-Powered Campus Ride Sharing & Live Bus Tracking',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',

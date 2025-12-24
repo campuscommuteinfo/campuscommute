@@ -20,7 +20,8 @@ import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-const AUTH_INIT_TIMEOUT = 10000; // Max time to wait for auth initialization
+const AUTH_INIT_TIMEOUT = 15000; // Max time to wait for auth initialization (15 seconds)
+const REDIRECT_CHECK_TIMEOUT = 5000; // Max time to wait for getRedirectResult (5 seconds)
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -121,91 +122,59 @@ export default function LoginPage() {
   }, [toast, log]);
 
   /**
-   * Main auth initialization
+   * Main auth initialization - ONLY check for redirect result (if user was redirected back)
+   * No automatic login check - user must click "Continue with Google"
    */
   React.useEffect(() => {
     if (isInitializedRef.current) return;
     isInitializedRef.current = true;
 
     let isMounted = true;
-    let authUnsubscribe: (() => void) | null = null;
-    let initTimeoutId: NodeJS.Timeout | null = null;
 
-    const initializeAuth = async () => {
-      log("Init started");
-      log(`URL: ${window.location.href}`);
+    const checkRedirectOnly = async () => {
+      // Only check if we're returning from a redirect sign-in
+      // This is needed because signInWithRedirect navigates away and back
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasAuthCallback = window.location.href.includes('__/auth/') ||
+        urlParams.has('mode') ||
+        document.referrer.includes('accounts.google.com');
 
-      setAuthState({ status: "checking_redirect" });
+      if (hasAuthCallback) {
+        log("Detected auth callback, checking redirect result...");
+        setAuthState({ status: "checking_redirect" });
 
-      // STEP 1: Check for redirect result
-      try {
-        log("Checking getRedirectResult...");
-        const result = await getRedirectResult(auth);
+        try {
+          // Add timeout to prevent infinite waiting
+          const redirectResultPromise = getRedirectResult(auth);
+          const timeoutPromise = new Promise<null>((_, reject) => {
+            setTimeout(() => reject(new Error('Redirect check timeout')), REDIRECT_CHECK_TIMEOUT);
+          });
 
-        if (result?.user) {
-          log(`Redirect user found: ${result.user.email}`);
-          if (isMounted) {
+          const result = await Promise.race([redirectResultPromise, timeoutPromise]);
+
+          if (result?.user && isMounted) {
+            log(`Redirect user found: ${result.user.email}`);
             await processAuthenticatedUser(result.user, true);
+            return;
           }
-          return;
-        }
-        log("No redirect result");
-      } catch (error) {
-        if (error instanceof FirebaseError) {
-          log(`Redirect error: ${error.code}`);
-        } else {
-          log(`Redirect error: ${error}`);
+        } catch (error) {
+          log(`Redirect check: ${error instanceof Error ? error.message : error}`);
         }
       }
 
-      // STEP 2: Check current auth state
-      log("Setting up onAuthStateChanged...");
-
-      authUnsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-
-        if (initTimeoutId) {
-          clearTimeout(initTimeoutId);
-          initTimeoutId = null;
-        }
-
-        if (user) {
-          log(`Auth state user: ${user.email}`);
-          await processAuthenticatedUser(user, false);
-        } else {
-          log("Auth state: null");
-
-          // Double-check currentUser
-          if (auth.currentUser) {
-            log(`Found currentUser: ${auth.currentUser.email}`);
-            await processAuthenticatedUser(auth.currentUser, false);
-          } else {
-            setAuthState({ status: "unauthenticated" });
-          }
-        }
-      });
-
-      // STEP 3: Timeout fallback
-      initTimeoutId = setTimeout(() => {
-        if (isMounted && !hasNavigatedRef.current) {
-          log("Timeout reached");
-          if (auth.currentUser) {
-            processAuthenticatedUser(auth.currentUser, false);
-          } else {
-            setAuthState({ status: "unauthenticated" });
-          }
-        }
-      }, AUTH_INIT_TIMEOUT);
+      // No auto-login check - just show the login page
+      if (isMounted) {
+        setAuthState({ status: "unauthenticated" });
+      }
     };
 
-    initializeAuth();
+    checkRedirectOnly();
 
     return () => {
       isMounted = false;
-      if (authUnsubscribe) authUnsubscribe();
-      if (initTimeoutId) clearTimeout(initTimeoutId);
     };
   }, [processAuthenticatedUser, log]);
+
 
   /**
    * Handle Google Sign In - TRY POPUP FIRST (works on most mobile browsers now)
@@ -319,19 +288,21 @@ export default function LoginPage() {
           <div className="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-400 text-sm">{message}</p>
 
-          {/* Debug Log */}
-          <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full border border-gray-800">
-            <p className="text-emerald-400 text-xs font-mono mb-2">Debug Log:</p>
-            <div className="space-y-0.5 max-h-48 overflow-y-auto">
-              {debugLog.length === 0 ? (
-                <p className="text-gray-600 text-xs font-mono">Waiting...</p>
-              ) : (
-                debugLog.map((msg, i) => (
-                  <p key={i} className="text-gray-400 text-xs font-mono">{msg}</p>
-                ))
-              )}
+          {/* Debug Log - Development Only */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full border border-gray-800">
+              <p className="text-emerald-400 text-xs font-mono mb-2">Debug Log:</p>
+              <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                {debugLog.length === 0 ? (
+                  <p className="text-gray-600 text-xs font-mono">Waiting...</p>
+                ) : (
+                  debugLog.map((msg, i) => (
+                    <p key={i} className="text-gray-400 text-xs font-mono">{msg}</p>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -350,12 +321,15 @@ export default function LoginPage() {
             Try Again
           </Button>
 
-          <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full max-w-sm border border-gray-800">
-            <p className="text-red-400 text-xs font-mono mb-2">Debug Log:</p>
-            {debugLog.map((msg, i) => (
-              <p key={i} className="text-gray-400 text-xs font-mono">{msg}</p>
-            ))}
-          </div>
+          {/* Debug Log - Development Only */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 p-3 bg-gray-900/80 rounded-lg w-full max-w-sm border border-gray-800">
+              <p className="text-red-400 text-xs font-mono mb-2">Debug Log:</p>
+              {debugLog.map((msg, i) => (
+                <p key={i} className="text-gray-400 text-xs font-mono">{msg}</p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -441,7 +415,8 @@ export default function LoginPage() {
           <Link href="#" className="text-emerald-400 hover:underline">Privacy Policy</Link>
         </p>
 
-        {debugLog.length > 0 && (
+        {/* Debug Log - Development Only */}
+        {process.env.NODE_ENV === 'development' && debugLog.length > 0 && (
           <details className="mt-6 w-full max-w-sm">
             <summary className="text-gray-600 text-xs cursor-pointer">Show debug log</summary>
             <div className="mt-2 p-3 bg-gray-900/50 rounded-lg border border-gray-800">

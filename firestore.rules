@@ -37,6 +37,16 @@ service cloud.firestore {
     // Allow logged-in users to read and create rides
     match /rides/{rideId} {
         allow read, create: if request.auth != null;
+        
+        // Ride messages subcollection - anyone in the ride can read/write
+        match /messages/{messageId} {
+            allow read: if request.auth != null;
+            allow create: if request.auth != null
+                && request.resource.data.senderId == request.auth.uid
+                && request.resource.data.text is string
+                && request.resource.data.text.size() > 0
+                && request.resource.data.text.size() <= 1000;
+        }
     }
 
     // Ride requests can be created by any authenticated user.
@@ -45,5 +55,11 @@ service cloud.firestore {
         allow create: if request.auth != null;
         allow read, update: if request.auth != null && (request.auth.uid == resource.data.driverId || request.auth.uid == resource.data.requesterId);
     }
+    
+    // FCM tokens - users can only manage their own tokens
+    match /fcm_tokens/{userId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
+
