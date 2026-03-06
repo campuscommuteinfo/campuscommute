@@ -10,7 +10,8 @@ import {
   Shield,
   User,
   MapPin,
-  Ticket
+  Ticket,
+  Zap
 } from "lucide-react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -38,87 +39,19 @@ const NavItem = ({
     className={cn(
       "flex flex-col items-center justify-center gap-1 py-2 px-4 rounded-xl transition-all relative group",
       isActive
-        ? "text-indigo-600"
-        : "text-slate-400 hover:text-slate-600"
+        ? "text-indigo-600 dark:text-indigo-400"
+        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
     )}
   >
     {isActive && (
       <span className="absolute inset-0 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl" />
     )}
     <Icon className={cn("w-5 h-5 relative z-10 transition-transform", isActive && "scale-105")} />
-    <span className={cn("text-[9px] font-bold uppercase tracking-wider relative z-10", isActive ? "text-indigo-600" : "text-slate-500")}>{label}</span>
+    <span className={cn("text-[8px] font-black uppercase tracking-[0.15em] relative z-10", isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500")}>{label}</span>
   </Link>
 );
 
-// Points card component
-const PointsCard = ({ points, userName }: { points: number; userName: string }) => {
-  const nextReward = 200;
-  const progress = Math.min((points / nextReward) * 100, 100);
-  const remaining = Math.max(nextReward - points, 0);
 
-  return (
-    <div className="relative group overflow-hidden rounded-3xl p-6 text-slate-900 dark:text-white border border-slate-200 dark:border-white/5 bg-slate-50 dark:bg-slate-900 shadow-sm transition-all">
-      {/* Subtle Background Elements */}
-      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl" />
-
-      {/* Card Content */}
-      <div className="relative z-10 flex flex-col h-full justify-between gap-8">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl border border-slate-200 dark:border-white/10 p-0.5">
-              <div className="w-full h-full bg-slate-100 dark:bg-slate-800 rounded-[10px] flex items-center justify-center overflow-hidden">
-                <Avatar className="w-full h-full">
-                  <AvatarFallback className="bg-transparent text-slate-900 dark:text-white text-lg font-bold">{userName.charAt(0)}</AvatarFallback>
-                </Avatar>
-              </div>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-0.5">Your ID</p>
-              <p className="text-lg font-bold tracking-tight">{userName.split(" ")[0]}</p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end">
-            <Trophy className="w-5 h-5 text-amber-500 mb-1.5" />
-            <div className="px-2.5 py-0.5 bg-slate-100 dark:bg-white/5 rounded-full border border-slate-200 dark:border-white/10">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600 dark:text-white/60">Silver Level</span>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-end justify-between mb-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Your Points</p>
-              <p className="text-3xl font-bold flex items-center gap-2">
-                {points}
-                <span className="text-[10px] text-slate-500">PTS</span>
-              </p>
-            </div>
-            <div className="text-right pb-1">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Progress</p>
-              <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{Math.round(progress)}%</p>
-            </div>
-          </div>
-
-          <div className="bg-slate-200 dark:bg-white/5 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-indigo-600 h-full rounded-full transition-all duration-1000"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          <p className="text-center text-[10px] font-bold uppercase tracking-wider mt-4 text-slate-500">
-            {remaining > 0 ? (
-              <>Unlock reward in <span className="text-indigo-600 dark:text-indigo-400">{remaining} points</span></>
-            ) : (
-              <span className="text-emerald-500">Claim your reward now! 🎉</span>
-            )}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 // Quick action button
 const QuickAction = ({
@@ -134,19 +67,19 @@ const QuickAction = ({
 }) => (
   <Link
     href={href}
-    className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 hover:border-indigo-500/30 transition-all group"
+    className="flex flex-col items-center gap-2 p-5 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-indigo-500/20 transition-all active:scale-95 group"
   >
-    <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105", gradient.replace("shadow-", ""))}>
-      <Icon className="w-6 h-6 text-white" />
+    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-hover:scale-110 shadow-lg text-white", gradient)}>
+      <Icon className="w-7 h-7" />
     </div>
-    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-indigo-600 transition-colors text-center">{label}</span>
+    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-indigo-500 transition-colors text-center">{label}</span>
   </Link>
 );
 
 
 
 export default function CommuteDashboard({ children }: { children: React.ReactNode }) {
-  const [points, setPoints] = React.useState(0);
+
   const [user, setUser] = React.useState<import("firebase/auth").User | null>(null);
   const [userName, setUserName] = React.useState("User");
   const [userPhoto, setUserPhoto] = React.useState("");
@@ -177,7 +110,6 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
 
           if (docSnap.exists()) {
             const userData = docSnap.data();
-            setPoints(userData.points || 0);
             setUserName(userData.name || currentUser.displayName || "User");
             if (userData.role === 'admin') {
               setIsAdmin(true);
@@ -191,7 +123,6 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
           } else {
             // Create user document if it doesn't exist
             setDoc(userDocRef, {
-              points: 0,
               profileComplete: false,
               name: currentUser.displayName || "",
               email: currentUser.email || "",
@@ -223,43 +154,7 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
 
 
 
-  const addPoints = async (amount: number, title: string, description: string) => {
-    if (!user) return;
 
-    const userDocRef = doc(db, "users", user.uid);
-
-    try {
-      // Use transaction to prevent race conditions
-      const { runTransaction } = await import("firebase/firestore");
-      const newPoints = await runTransaction(db, async (transaction) => {
-        const userDoc = await transaction.get(userDocRef);
-        if (!userDoc.exists()) throw new Error("User document not found");
-
-        const currentPoints = userDoc.data().points || 0;
-        const updatedPoints = currentPoints + amount;
-        transaction.update(userDocRef, { points: updatedPoints });
-        return updatedPoints;
-      });
-
-      toast({ title, description });
-
-      // Check for reward unlock
-      if (points < 200 && newPoints >= 200) {
-        toast({
-          variant: "default",
-          title: "🎉 Reward Unlocked!",
-          description: "You've earned a Free Ride!",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to update points:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not update your points.",
-      });
-    }
-  };
 
   const navItems = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Home" },
@@ -269,13 +164,8 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
     { href: "/dashboard/profile", icon: User, label: "Profile" },
   ];
 
-  // Pass addPoints to children that need it
-  const childrenWithProps = React.Children.map(children, (child) => {
-    if (React.isValidElement(child) && pathname === "/dashboard") {
-      return React.cloneElement(child, { addPoints } as { addPoints: (amount: number, title: string, description: string) => Promise<void> });
-    }
-    return child;
-  });
+  const childrenWithProps = children;
+
 
   if (isLoading) {
     return (
@@ -337,11 +227,9 @@ export default function CommuteDashboard({ children }: { children: React.ReactNo
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto pb-32 safe-x lg:px-4">
-          {/* Show points card only on dashboard home */}
+          {/* Show quick actions on dashboard home */}
           {pathname === "/dashboard" && (
-            <div className="px-6 py-6 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
-              <PointsCard points={points} userName={userName} />
-
+            <div className="px-6 py-8 space-y-8 animate-in fade-in slide-in-from-top-4 duration-500">
               {/* Quick Actions */}
               <div className="grid grid-cols-4 gap-3">
                 <QuickAction

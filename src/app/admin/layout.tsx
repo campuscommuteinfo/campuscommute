@@ -85,29 +85,35 @@ export default function AdminLayout({
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                const userDoc = await getDoc(doc(db, "users", user.uid));
-                if (userDoc.exists() && userDoc.data().role === "admin") {
-                    setIsAdmin(true);
-                    setAdminUser(user);
-                } else {
-                    // Check for dev flag or specific emails ONLY in development mode
-                    const isDevelopment = process.env.NODE_ENV === 'development';
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const hasDevFlag = urlParams.get('dev') === 'true';
-                    const hasAdminEmail = user.email?.includes('admin');
-
-                    if (isDevelopment && (hasDevFlag || hasAdminEmail)) {
+                try {
+                    const userDoc = await getDoc(doc(db, "users", user.uid));
+                    if (userDoc.exists() && userDoc.data().role === "admin") {
                         setIsAdmin(true);
                         setAdminUser(user);
                     } else {
-                        setIsAdmin(false);
-                        toast({
-                            title: "Access Denied",
-                            description: "Only administrators can access this area.",
-                            variant: "destructive"
-                        });
-                        router.replace('/dashboard');
+                        // Check for dev flag or specific emails ONLY in development mode
+                        const isDevelopment = process.env.NODE_ENV === 'development';
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const hasDevFlag = urlParams.get('dev') === 'true';
+                        const hasAdminEmail = user.email?.includes('admin');
+
+                        if (isDevelopment && (hasDevFlag || hasAdminEmail)) {
+                            setIsAdmin(true);
+                            setAdminUser(user);
+                        } else {
+                            setIsAdmin(false);
+                            toast({
+                                title: "Access Denied",
+                                description: "Only administrators can access this area.",
+                                variant: "destructive"
+                            });
+                            router.replace('/dashboard');
+                        }
                     }
+                } catch (error) {
+                    console.error("Admin check error:", error);
+                    setIsAdmin(false);
+                    router.replace('/dashboard');
                 }
             } else {
                 router.replace('/login');
