@@ -12,14 +12,12 @@ import {
   IndianRupee,
   Shield,
   Bot,
-  MapPin,
   Star,
   ArrowRight,
   CheckCircle2,
   Sparkles,
   Zap,
   Bus,
-  Navigation,
   Leaf,
   ChevronDown
 } from 'lucide-react';
@@ -36,9 +34,9 @@ const FeatureItem = ({
   description: string;
   color: string;
 }) => (
-  <div className="flex gap-4 p-4 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl border border-white/50 dark:border-gray-700/50 shadow-sm">
-    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${color}`}>
-      <Icon className="w-6 h-6 text-white" />
+  <div className="flex gap-4 p-4 bg-white/50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
+      <Icon className="w-5 h-5 text-white" />
     </div>
     <div>
       <h3 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">{title}</h3>
@@ -66,7 +64,7 @@ const Step = ({
   description: string;
 }) => (
   <div className="flex gap-4 items-start">
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-emerald-500/30">
+    <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
       {number}
     </div>
     <div className="pt-1">
@@ -95,8 +93,8 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen bg-[#0A0A0F]">
       {/* Header */}
       <header className={`fixed w-full top-0 z-50 transition-all duration-300 safe-top ${scrolled
-          ? 'bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/10'
-          : 'bg-transparent'
+        ? 'bg-[#0A0A0F]/95 backdrop-blur-xl border-b border-white/10'
+        : 'bg-transparent'
         }`}>
         <div className="flex items-center justify-between px-5 py-4">
           <Link href="/" className="flex items-center gap-2">
@@ -108,7 +106,7 @@ export default function LandingPage() {
             <Button
               asChild
               size="sm"
-              className="bg-white text-gray-900 hover:bg-gray-100 rounded-full px-5 h-9 text-sm font-medium"
+              className="bg-white text-slate-900 hover:bg-slate-100 rounded-xl px-5 h-9 text-sm font-medium shadow-sm transition-all active:scale-95"
             >
               <Link href="/login">Get App</Link>
             </Button>
@@ -149,7 +147,7 @@ export default function LandingPage() {
               ))}
             </div>
             <div className="p-6 safe-bottom">
-              <Button asChild className="w-full h-14 bg-gradient-to-r from-emerald-400 to-cyan-500 text-white rounded-2xl text-base font-semibold">
+              <Button asChild className="w-full h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-base font-bold shadow-sm active:scale-95 transition-all">
                 <Link href="/login" onClick={() => setIsMenuOpen(false)}>
                   Get Started Free
                 </Link>
@@ -192,7 +190,7 @@ export default function LandingPage() {
             {/* CTA Button */}
             <Button
               asChild
-              className="h-14 bg-gradient-to-r from-emerald-400 to-cyan-500 text-white hover:opacity-90 rounded-2xl px-8 text-base font-semibold shadow-lg shadow-emerald-500/25"
+              className="h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-8 text-base font-bold shadow-sm active:scale-95 transition-all"
             >
               <Link href="/login" className="flex items-center gap-2">
                 Get Started <ArrowRight className="w-5 h-5" />
@@ -217,8 +215,8 @@ export default function LandingPage() {
 
             {/* Phone Mockup */}
             <div className="mt-12 relative">
-              <div className="mx-auto w-64 bg-gradient-to-b from-gray-800 to-gray-900 rounded-[2.5rem] p-2 shadow-2xl shadow-black/50 border border-white/10">
-                <div className="bg-[#0A0A0F] rounded-[2rem] overflow-hidden">
+              <div className="mx-auto w-64 bg-slate-800 rounded-[2.5rem] p-2 shadow-xl border border-white/10">
+                <div className="bg-[#0A0A0F] rounded-[2.25rem] overflow-hidden">
                   {/* Notch */}
                   <div className="h-7 flex items-center justify-center">
                     <div className="w-20 h-5 bg-black rounded-full" />
@@ -238,23 +236,23 @@ export default function LandingPage() {
                     </div>
                     {/* Route cards */}
                     {[
-                      { name: "Bus 73A", time: "2 min", crowd: "Low", color: "bg-emerald-400" },
-                      { name: "Cab Pool", time: "5 min", crowd: "3 seats", color: "bg-cyan-400" },
-                      { name: "Bus 100B", time: "8 min", crowd: "Medium", color: "bg-yellow-400" },
+                      { name: "Bus 73A", time: "2 min", crowd: "Low", color: "bg-emerald-500" },
+                      { name: "Cab Pool", time: "5 min", crowd: "3 seats", color: "bg-indigo-500" },
+                      { name: "Bus 100B", time: "8 min", crowd: "Medium", color: "bg-amber-500" },
                     ].map((route, i) => (
                       <div key={i} className="bg-white/5 rounded-xl p-3 mb-2 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                            <Bus className="w-4 h-4 text-white/70" />
+                          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                            <Bus className="w-4 h-4 text-white/50" />
                           </div>
                           <div>
-                            <p className="text-white text-xs font-medium">{route.name}</p>
-                            <p className="text-white/50 text-[10px]">{route.crowd}</p>
+                            <p className="text-white text-[11px] font-bold">{route.name}</p>
+                            <p className="text-white/40 text-[9px]">{route.crowd}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-white/70 text-xs">{route.time}</span>
-                          <div className={`w-2 h-2 rounded-full ${route.color}`} />
+                          <span className="text-white/60 text-[10px]">{route.time}</span>
+                          <div className={`w-1.5 h-1.5 rounded-full ${route.color}`} />
                         </div>
                       </div>
                     ))}
@@ -275,7 +273,7 @@ export default function LandingPage() {
 
         {/* Stats Section */}
         <section className="py-6 px-6">
-          <div className="bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-2xl overflow-hidden">
+          <div className="bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
             <div className="flex justify-around py-4">
               <StatPill value="500+" label="Students" />
               <StatPill value="1.2K+" label="Rides" />
@@ -360,7 +358,7 @@ export default function LandingPage() {
           <div className="mt-10 text-center">
             <Button
               asChild
-              className="h-14 bg-gradient-to-r from-emerald-400 to-cyan-500 text-white rounded-2xl px-8 text-base font-semibold"
+              className="h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-8 text-base font-bold shadow-sm active:scale-95 transition-all"
             >
               <Link href="/login" className="flex items-center gap-2">
                 Get Started <ArrowRight className="w-5 h-5" />
@@ -381,10 +379,10 @@ export default function LandingPage() {
             </p>
             <Button
               asChild
-              className="h-14 bg-white text-gray-900 hover:bg-gray-100 rounded-2xl px-8 text-base font-semibold shadow-lg"
+              className="h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl px-8 text-base font-bold shadow-sm active:scale-95 transition-all"
             >
               <Link href="/login" className="flex items-center gap-2">
-                Download Free <ArrowRight className="w-5 h-5" />
+                Get App Now <ArrowRight className="w-5 h-5" />
               </Link>
             </Button>
           </div>

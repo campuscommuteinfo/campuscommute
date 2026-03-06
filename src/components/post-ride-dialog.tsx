@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -71,8 +70,10 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
 
   // Debounced fare suggestion
   React.useEffect(() => {
+    let timer: NodeJS.Timeout;
+
     if (fromValue?.length >= 2 && toValue?.length >= 2 && dateValue) {
-      const timer = setTimeout(async () => {
+      timer = setTimeout(async () => {
         setIsLoadingFare(true);
         try {
           const suggestion = await suggestRideFare({
@@ -93,9 +94,11 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
           setIsLoadingFare(false);
         }
       }, 1000); // Debounce 1 second
-
-      return () => clearTimeout(timer);
     }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [fromValue, toValue, dateValue, seatsValue, form]);
 
   const onSubmit = async (values: z.infer<typeof rideSchema>) => {
@@ -356,4 +359,3 @@ export default function PostRideDialog({ open, onOpenChange }: PostRideDialogPro
     </Dialog>
   );
 }
-

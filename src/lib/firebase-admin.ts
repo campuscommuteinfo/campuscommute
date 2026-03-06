@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 let app: App | undefined;
 let adminDb: Firestore | undefined;
@@ -50,3 +51,22 @@ export function getAdminDb(): Firestore {
 }
 
 export { getAdminApp };
+
+/**
+ * Verify a Firebase ID token and return the decoded token
+ */
+export async function verifyIdToken(idToken: string) {
+    if (!idToken) {
+        throw new Error('No ID token provided');
+    }
+
+    try {
+        const adminApp = getAdminApp();
+        const decodedToken = await getAuth(adminApp).verifyIdToken(idToken);
+        return decodedToken;
+    } catch (error) {
+        console.error('Token verification error:', error);
+        throw new Error('Authentication failed');
+    }
+}
+

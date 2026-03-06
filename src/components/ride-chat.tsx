@@ -8,9 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
     Send,
     ArrowLeft,
-    Phone,
     MoreVertical,
-    Image as ImageIcon,
     Smile
 } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';

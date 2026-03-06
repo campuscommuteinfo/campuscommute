@@ -53,39 +53,39 @@ export default function AddEmergencyContactDialog({ open, onOpenChange }: AddEme
   const onSubmit = async (values: z.infer<typeof contactSchema>) => {
     const user = auth.currentUser;
     if (!user) {
-        toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in." });
-        return;
+      toast({ variant: "destructive", title: "Not Authenticated", description: "You must be logged in." });
+      return;
     }
 
     setIsSubmitting(true);
     try {
-        const contactsColRef = collection(db, "users", user.uid, "emergency_contacts");
-        await addDoc(contactsColRef, values);
+      const contactsColRef = collection(db, "users", user.uid, "emergency_contacts");
+      await addDoc(contactsColRef, values);
 
-        toast({
-            title: "Contact Added!",
-            description: `${values.name} has been added to your emergency contacts.`,
-        });
-        form.reset();
-        onOpenChange(false);
+      toast({
+        title: "Contact Added!",
+        description: `${values.name} has been added to your emergency contacts.`,
+      });
+      form.reset();
+      onOpenChange(false);
     } catch (error) {
-        console.error("Error adding contact: ", error);
-        toast({
-            variant: "destructive",
-            title: "Submission Failed",
-            description: "Could not add the contact. Please try again.",
-        });
+      console.error("Error adding contact: ", error);
+      toast({
+        variant: "destructive",
+        title: "Submission Failed",
+        description: "Could not add the contact. Please try again.",
+      });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
-        if (!isSubmitting) {
-            onOpenChange(isOpen);
-            if (!isOpen) form.reset();
-        }
+      if (!isSubmitting) {
+        onOpenChange(isOpen);
+        if (!isOpen) form.reset();
+      }
     }}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

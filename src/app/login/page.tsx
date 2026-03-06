@@ -9,7 +9,6 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  onAuthStateChanged,
   User
 } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -20,7 +19,6 @@ import { ArrowLeft, Shield, Zap, Users, Sparkles } from "lucide-react";
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-const AUTH_INIT_TIMEOUT = 15000; // Max time to wait for auth initialization (15 seconds)
 const REDIRECT_CHECK_TIMEOUT = 5000; // Max time to wait for getRedirectResult (5 seconds)
 
 // ============================================================================

@@ -1,6 +1,7 @@
 'use server';
 
-import { getAdminDb } from '@/lib/firebase-admin';
+import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
+import { logAuthAudit } from '@/lib/monitor';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export interface RedeemRewardResult {
@@ -15,10 +16,30 @@ export interface RedeemRewardResult {
  * This prevents client-side manipulation of points
  */
 export async function redeemReward(
+    idToken: string,
     userId: string,
     rewardTitle: string,
     pointsCost: number
 ): Promise<RedeemRewardResult> {
+    // Verify authentication
+    try {
+        const decodedToken = await verifyIdToken(idToken);
+        if (decodedToken.uid !== userId) {
+            await logAuthAudit(userId, 'REWARD_REDEEM_UID_MISMATCH', {
+                providedUserId: userId,
+                tokenUserId: decodedToken.uid,
+                rewardTitle
+            });
+            return { success: false, error: 'Unauthorized: UID mismatch' };
+        }
+    } catch (error) {
+        await logAuthAudit(userId, 'REWARD_REDEEM_AUTH_FAILURE', {
+            providedUserId: userId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return { success: false, error: 'Authentication failed' };
+    }
+
     // Validate inputs
     if (!userId || typeof userId !== 'string') {
         return { success: false, error: 'Invalid user ID' };
@@ -106,10 +127,30 @@ export async function redeemReward(
  * Server-side validated
  */
 export async function addUserPoints(
+    idToken: string,
     userId: string,
     amount: number,
     reason: string
 ): Promise<{ success: boolean; newPoints?: number; error?: string }> {
+    // Verify authentication
+    try {
+        const decodedToken = await verifyIdToken(idToken);
+        if (decodedToken.uid !== userId) {
+            await logAuthAudit(userId, 'ADD_POINTS_UID_MISMATCH', {
+                providedUserId: userId,
+                tokenUserId: decodedToken.uid,
+                reason
+            });
+            return { success: false, error: 'Unauthorized: UID mismatch' };
+        }
+    } catch (error) {
+        await logAuthAudit(userId, 'ADD_POINTS_AUTH_FAILURE', {
+            providedUserId: userId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return { success: false, error: 'Authentication failed' };
+    }
+
     if (!userId || typeof userId !== 'string') {
         return { success: false, error: 'Invalid user ID' };
     }

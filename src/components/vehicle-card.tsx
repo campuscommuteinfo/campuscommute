@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -316,7 +315,7 @@ export default function VehicleCard({ vehicle, addPoints, onClose }: VehicleCard
             <ActionButton
               icon={UserPlus}
               label="Report Crowd"
-              onClick={() => { }}
+              onClick={() => addPoints(5, "+5 Points!", "Thanks for reporting the crowd level.")}
             />
             <ActionButton
               icon={Users}

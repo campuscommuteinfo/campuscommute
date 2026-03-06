@@ -3,12 +3,12 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gift, Ticket, ShoppingCart, Star, Utensils } from "lucide-react";
+import { Gift, Ticket, ShoppingCart, Utensils, Zap, Trophy, History } from "lucide-react";
 import Image from "next/image";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { redeemReward } from "@/app/actions/rewardsActions";
 
@@ -63,41 +63,51 @@ const RewardCard = ({
   const Icon = reward.icon;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.98] transition-transform">
+    <div className="bg-white dark:bg-slate-900 rounded-[2rem] overflow-hidden shadow-xl border border-slate-100 dark:border-white/5 group relative active:scale-[0.98] transition-all">
       {/* Image */}
-      <div className="relative h-28 overflow-hidden">
+      <div className="relative h-32 overflow-hidden">
         <Image
           src={reward.image}
           alt={reward.title}
           fill
-          className="object-cover"
+          className="object-cover transition-transform duration-700 group-hover:scale-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent" />
         <div className={cn(
-          "absolute bottom-2 left-2 w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br",
+          "absolute bottom-3 left-3 w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br shadow-lg backdrop-blur-md border border-white/10",
           reward.color
         )}>
           <Icon className="w-5 h-5 text-white" />
         </div>
-        <Badge className="absolute top-2 right-2 bg-white/90 text-gray-800 text-xs">
+        <Badge className="absolute top-3 right-3 bg-white/10 backdrop-blur-md text-white border-0 text-[10px] font-black uppercase tracking-widest pl-2 pr-3 py-1">
           {reward.brand}
         </Badge>
       </div>
 
       {/* Content */}
-      <div className="p-3">
-        <h3 className="font-semibold text-sm text-gray-800 dark:text-white mb-2">{reward.title}</h3>
+      <div className="p-5">
+        <h3 className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight mb-4 leading-tight min-h-[2.5rem]">{reward.title}</h3>
         <Button
           className={cn(
-            "w-full h-10 rounded-xl text-sm font-medium",
+            "w-full h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all",
             canRedeem
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
-              : "bg-gray-100 text-gray-400 dark:bg-gray-700"
+              ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xl dark:shadow-white/20 hover:scale-[1.02]"
+              : "bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-500 cursor-not-allowed"
           )}
           disabled={!canRedeem || isRedeeming}
           onClick={onRedeem}
         >
-          {isRedeeming ? "Redeeming..." : `${reward.points} pts`}
+          {isRedeeming ? (
+            <span className="flex items-center gap-2">
+              <span className="w-1 h-1 bg-current rounded-full animate-bounce" />
+              Processing
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              {canRedeem ? "Claim Reward" : "Locked"}
+              <span className="bg-white/20 px-1.5 py-0.5 rounded text-[9px]">{reward.points} Pts</span>
+            </span>
+          )}
         </Button>
       </div>
     </div>
@@ -109,37 +119,65 @@ export default function Rewards() {
   const [user, setUser] = React.useState<User | null>(null);
   const [isRedeeming, setIsRedeeming] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState<"rewards" | "history">("rewards");
+  const [stats, setStats] = React.useState({ ridesTaken: 0, redeemed: 0 });
+  interface RedemptionHistory {
+    id: string;
+    title: string;
+    points: number;
+    redeemedAt: any;
+    status: string;
+  }
+
+  const [history, setHistory] = React.useState<RedemptionHistory[]>([]);
   const { toast } = useToast();
 
   React.useEffect(() => {
-    let isMounted = true;
-    let unsubscribeSnapshot: (() => void) | null = null;
+    let unsubscribeSnapshot: (() => void) | undefined;
+    let unsubscribeRides: (() => void) | undefined;
+    let unsubscribeVouchers: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      if (!isMounted) return;
+      // Clean up previous listeners
+      if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = undefined; }
+      if (unsubscribeRides) { unsubscribeRides(); unsubscribeRides = undefined; }
+      if (unsubscribeVouchers) { unsubscribeVouchers(); unsubscribeVouchers = undefined; }
 
       if (currentUser) {
         setUser(currentUser);
         const userDocRef = doc(db, "users", currentUser.uid);
 
         unsubscribeSnapshot = onSnapshot(userDocRef, (docSnap) => {
-          if (!isMounted) return;
           if (docSnap.exists()) {
             setUserPoints(docSnap.data().points || 0);
           }
-        }, (error) => {
-          console.error("Error fetching user points:", error);
         });
+
+        // Fetch ride count
+        const ridesQuery = query(collection(db, "rides"), where("driverId", "==", currentUser.uid));
+        unsubscribeRides = onSnapshot(ridesQuery, (snap) => {
+          setStats(prev => ({ ...prev, ridesTaken: snap.size }));
+        });
+
+        // Fetch redemption count and history
+        const vouchersQuery = query(collection(db, "redeemed_vouchers"), where("userId", "==", currentUser.uid));
+        unsubscribeVouchers = onSnapshot(vouchersQuery, (snap) => {
+          setStats(prev => ({ ...prev, redeemed: snap.size }));
+          setHistory(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RedemptionHistory)));
+        });
+
       } else {
         setUser(null);
         setUserPoints(0);
+        setStats({ ridesTaken: 0, redeemed: 0 });
+        setHistory([]);
       }
     });
 
     return () => {
-      isMounted = false;
       unsubscribeAuth();
       if (unsubscribeSnapshot) unsubscribeSnapshot();
+      if (unsubscribeRides) unsubscribeRides();
+      if (unsubscribeVouchers) unsubscribeVouchers();
     };
   }, []);
 
@@ -149,124 +187,157 @@ export default function Rewards() {
       return;
     }
     if (userPoints < reward.points) {
-      toast({ variant: "destructive", title: "Not Enough Points", description: `Need ${reward.points - userPoints} more points` });
+      toast({ variant: "destructive", title: "Locked", description: `You need ${reward.points - userPoints} more points to unlock this.` });
       return;
     }
 
     setIsRedeeming(reward.title);
 
     try {
-      // Use secure server action instead of client-side transaction
-      const result = await redeemReward(user.uid, reward.title, reward.points);
+      const token = await user.getIdToken();
+      const result = await redeemReward(token, user.uid, reward.title, reward.points);
 
       if (result.success) {
         toast({
-          title: "🎉 Redeemed!",
-          description: `You got ${reward.title}. New balance: ${result.newPoints} pts`,
+          title: "Reward Unlocked! 🎁",
+          description: `${reward.title} has been added to your vault.`,
+          className: "bg-slate-900 border-white/10 text-white"
         });
       } else {
         toast({
           variant: "destructive",
-          title: "Failed",
-          description: result.error || "Please try again"
+          title: "Transaction Failed",
+          description: result.error || "Please try again later"
         });
       }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Failed", description: "Please try again" });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Network request failed" });
     } finally {
       setIsRedeeming(null);
     }
   };
 
   return (
-    <div className="space-y-4 -mx-4">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Points Header */}
-      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 mx-4 rounded-2xl p-5 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-white/80 text-sm">Your Points Balance</p>
-            <p className="text-4xl font-bold">{userPoints.toLocaleString()}</p>
+      <div className="relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-[80px] -mr-16 -mt-16 animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/20 rounded-full blur-[80px] -ml-16 -mb-16" />
+
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-8">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-2">Vault Balance</p>
+              <div className="text-5xl font-black tracking-tighter flex items-baseline gap-2">
+                {userPoints.toLocaleString()}
+                <span className="text-lg text-slate-500 font-bold tracking-normal">PTS</span>
+              </div>
+            </div>
+            <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 shadow-xl">
+              <Trophy className="w-6 h-6 text-amber-400" />
+            </div>
           </div>
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-            <Star className="w-8 h-8 text-yellow-300" />
-          </div>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
-            <p className="text-2xl font-bold">12</p>
-            <p className="text-xs text-white/80">Rides Taken</p>
-          </div>
-          <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
-            <p className="text-2xl font-bold">3</p>
-            <p className="text-xs text-white/80">Redeemed</p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/5">
+              <p className="text-2xl font-black">{stats.ridesTaken}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Trips Completed</p>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-4 border border-white/5">
+              <p className="text-2xl font-black">{stats.redeemed}</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-1">Rewards Claimed</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 px-4">
+      <div className="bg-white/50 dark:bg-slate-900/50 p-1.5 rounded-[1.25rem] flex gap-2 backdrop-blur-sm border border-slate-200/50 dark:border-white/5">
         <button
           onClick={() => setActiveTab("rewards")}
           className={cn(
-            "flex-1 py-3 rounded-xl font-medium text-sm transition-all",
+            "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
             activeTab === "rewards"
-              ? "bg-indigo-600 text-white"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+              ? "bg-white dark:bg-slate-800 text-indigo-600 shadow-lg"
+              : "text-slate-500 hover:bg-white/50 dark:hover:bg-white/5"
           )}
         >
-          <Gift className="w-4 h-4 inline mr-2" />
-          Rewards
+          <Gift className="w-3.5 h-3.5 inline mr-2 -mt-0.5" />
+          Catalog
         </button>
         <button
           onClick={() => setActiveTab("history")}
           className={cn(
-            "flex-1 py-3 rounded-xl font-medium text-sm transition-all",
+            "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
             activeTab === "history"
-              ? "bg-indigo-600 text-white"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+              ? "bg-white dark:bg-slate-800 text-indigo-600 shadow-lg"
+              : "text-slate-500 hover:bg-white/50 dark:hover:bg-white/5"
           )}
         >
-          <Star className="w-4 h-4 inline mr-2" />
-          History
+          <History className="w-3.5 h-3.5 inline mr-2 -mt-0.5" />
+          Timeline
         </button>
       </div>
 
       {/* Content */}
-      {activeTab === "rewards" ? (
-        <div className="grid grid-cols-2 gap-3 px-4">
-          {rewards.map((reward, index) => (
-            <RewardCard
-              key={index}
-              reward={reward}
-              userPoints={userPoints}
-              onRedeem={() => handleRedeem(reward)}
-              isRedeeming={isRedeeming === reward.title}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="px-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center">
-            <Gift className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">No redemption history yet</p>
-            <p className="text-xs text-gray-400 mt-1">Start redeeming rewards!</p>
+      <div className="min-h-[300px]">
+        {activeTab === "rewards" ? (
+          <div className="grid grid-cols-2 gap-4">
+            {rewards.map((reward, index) => (
+              <RewardCard
+                key={index}
+                reward={reward}
+                userPoints={userPoints}
+                onRedeem={() => handleRedeem(reward)}
+                isRedeeming={isRedeeming === reward.title}
+              />
+            ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-4">
+            {history.length > 0 ? (
+              history.map((item) => (
+                <div key={item.id} className="bg-white dark:bg-slate-900 rounded-[1.5rem] p-5 flex items-center gap-4 shadow-sm border border-slate-100 dark:border-white/5">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/10">
+                    <Ticket className="w-5 h-5 text-indigo-500" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-black text-xs text-slate-900 dark:text-white uppercase tracking-tight">{item.title}</p>
+                    <p className="text-[10px] font-medium text-slate-400 mt-1">
+                      {item.redeemedAt?.toDate ? item.redeemedAt.toDate().toLocaleDateString() : "Recently"}
+                    </p>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center opacity-50">
+                <Gift className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Vault Empty</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
-      {/* How to Earn Section */}
-      <div className="px-4 pb-4">
-        <h3 className="font-semibold text-gray-800 dark:text-white mb-3">How to Earn Points</h3>
-        <div className="space-y-2">
+      {/* Earn More Footer */}
+      <div className="rounded-[2rem] bg-indigo-50 dark:bg-indigo-500/5 border border-indigo-100 dark:border-indigo-500/10 p-6">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-4 flex items-center gap-2">
+          <Zap className="w-3.5 h-3.5" />
+          Boost your balance
+        </h3>
+        <div className="space-y-3">
           {[
-            { action: "Track a ride", points: "+10 pts" },
-            { action: "Report crowd level", points: "+5 pts" },
-            { action: "Share a ride", points: "+20 pts" },
-            { action: "Complete your profile", points: "+50 pts" },
+            { action: "Initialize a Journey", points: "+10" },
+            { action: "Report Grid Status", points: "+5" },
+            { action: "Share your Node", points: "+20" },
+            { action: "Verify Profile", points: "+50" },
           ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl">
-              <span className="text-sm text-gray-600 dark:text-gray-400">{item.action}</span>
-              <span className="text-sm font-semibold text-green-600">{item.points}</span>
+            <div key={i} className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-xl border border-indigo-100/50 dark:border-white/5">
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">{item.action}</span>
+              <Badge className="bg-emerald-500/10 text-emerald-600 border-0 text-[10px] font-black">
+                {item.points} PTS
+              </Badge>
             </div>
           ))}
         </div>

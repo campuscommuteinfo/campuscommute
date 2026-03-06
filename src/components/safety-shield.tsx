@@ -10,15 +10,16 @@ import {
     UserPlus,
     MessageSquare,
     Trash2,
-    AlertTriangle,
-    MapPin,
-    Users
+    Users,
+    Siren,
+    Radio
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import AddEmergencyContactDialog from "./add-emergency-contact-dialog";
+import { broadcastSOS, cancelSOS } from "@/app/actions/sosActions";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -47,46 +48,46 @@ const ContactCard = ({
     contact: EmergencyContact;
     onDelete: () => void;
 }) => (
-    <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm">
-        <Avatar className="w-12 h-12">
-            <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold">
+    <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/5 group">
+        <Avatar className="w-10 h-10 border border-slate-100 dark:border-white/10">
+            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-xs">
                 {contact.name.substring(0, 2).toUpperCase()}
             </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-gray-800 dark:text-white truncate">{contact.name}</p>
-            <p className="text-xs text-gray-500">{contact.relation}</p>
+            <p className="font-bold text-sm text-slate-900 dark:text-white truncate uppercase tracking-tight">{contact.name}</p>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{contact.relation}</p>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-2">
             <a
                 href={`tel:${contact.phone}`}
-                className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center active:scale-95 transition-transform"
+                className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center active:scale-95 transition-transform hover:bg-emerald-500/20"
             >
-                <Phone className="w-4 h-4 text-green-600" />
+                <Phone className="w-4 h-4 text-emerald-600" />
             </a>
             <a
                 href={`sms:${contact.phone}`}
-                className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center active:scale-95 transition-transform"
+                className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center active:scale-95 transition-transform hover:bg-indigo-500/20"
             >
-                <MessageSquare className="w-4 h-4 text-blue-600" />
+                <MessageSquare className="w-4 h-4 text-indigo-600" />
             </a>
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <button className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center active:scale-95 transition-transform">
-                        <Trash2 className="w-4 h-4 text-red-500" />
+                    <button className="w-9 h-9 rounded-lg bg-rose-500/10 flex items-center justify-center active:scale-95 transition-transform">
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
                     </button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="mx-4 rounded-2xl">
+                <AlertDialogContent className="mx-4 rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Contact?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Remove {contact.name} from your emergency contacts?
+                        <AlertDialogTitle className="font-bold">Delete Connection?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-slate-400 font-medium">
+                            Remove {contact.name} from your help list?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={onDelete} className="bg-red-500 hover:bg-red-600">
-                            Delete
+                        <AlertDialogCancel className="rounded-xl border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={onDelete} className="bg-rose-600 hover:bg-rose-700 rounded-xl font-bold uppercase tracking-wider text-xs">
+                            Confirm Delete
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -103,6 +104,7 @@ export default function SafetyShield() {
     const [isAddDialogOpen, setIsAddDialogOpen] = React.useState(false);
     const [isSosActive, setIsSosActive] = React.useState(false);
     const [sosCountdown, setSosCountdown] = React.useState(3);
+    const [activeAlertId, setActiveAlertId] = React.useState<string | null>(null);
     const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
 
     React.useEffect(() => {
@@ -148,18 +150,56 @@ export default function SafetyShield() {
                 setSosCountdown(sosCountdown - 1);
             }, 1000);
         } else if (isSosActive && sosCountdown === 0) {
-            toast({
-                variant: "destructive",
-                title: "🆘 SOS Alert Sent!",
-                description: "Location shared with security and contacts.",
-            });
+            // Get location and broadcast
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    const token = await user?.getIdToken();
+                    const result = await broadcastSOS(
+                        token!,
+                        user?.uid || "anonymous",
+                        user?.displayName || "Anonymous User",
+                        latitude,
+                        longitude
+                    );
+
+                    if (result.success) {
+                        setActiveAlertId(result.alertId!);
+                        toast({
+                            variant: "destructive",
+                            title: "🆘 HELP REQUEST SENT",
+                            description: "Your location has been sent to the help team.",
+                            className: "bg-rose-600 border-none text-white font-bold"
+                        });
+                    }
+                }, (error) => {
+                    console.error("Geolocation error:", error);
+                    toast({
+                        variant: "destructive",
+                        title: "Signal Weak",
+                        description: "Could not find your location, but help is notified."
+                    });
+                });
+            }
+
             setIsSosActive(false);
             setSosCountdown(3);
         }
         return () => clearTimeout(timer);
-    }, [isSosActive, sosCountdown, toast]);
+    }, [isSosActive, sosCountdown, toast, user]);
 
-    const handleSosClick = () => {
+    const handleSosClick = async () => {
+        // Connectivity check
+        if (!navigator.onLine && !isSosActive) {
+            toast({
+                variant: "destructive",
+                title: "OFFLINE MODE",
+                description: "Cannot broadcast SOS without internet. Please call local emergency services.",
+                className: "bg-rose-900 border-none text-white font-bold"
+            });
+            return;
+        }
+
         // Vibration feedback if supported
         if ('vibrate' in navigator) {
             navigator.vibrate(isSosActive ? 50 : [100, 50, 100]);
@@ -170,15 +210,24 @@ export default function SafetyShield() {
         } else {
             setIsSosActive(false);
             setSosCountdown(3);
-            toast({ title: "SOS Cancelled" });
+
+            if (activeAlertId && user) {
+                const token = await user.getIdToken();
+                await cancelSOS(token, activeAlertId, user.uid);
+                setActiveAlertId(null);
+            }
+
+            toast({ title: "Help Cancelled", className: "bg-emerald-500 border-none text-white font-bold" });
         }
     };
 
     const handleShareTrip = () => {
-        navigator.clipboard.writeText("https://commute.app/trip/abc123");
+        const beaconUrl = `${window.location.origin}/trip/${user?.uid || 'guest'}-${Date.now()}`;
+        navigator.clipboard.writeText(beaconUrl);
         toast({
-            title: "Link Copied!",
-            description: "Share with trusted contacts",
+            title: "LINK COPIED",
+            description: "Share this with people you trust.",
+            className: "bg-slate-900 border-white/10 text-white font-black uppercase tracking-widest text-xs"
         });
     };
 
@@ -189,146 +238,161 @@ export default function SafetyShield() {
         try {
             const contactDocRef = doc(db, "users", user.uid, "emergency_contacts", contactId);
             await deleteDoc(contactDocRef);
-            toast({ title: "Contact Deleted" });
+            toast({ title: "Person Removed", className: "bg-slate-900 border-white/10 text-white font-bold" });
         } catch (error) {
             console.error("Error deleting contact:", error);
-            toast({ variant: "destructive", title: "Failed to delete" });
+            toast({ variant: "destructive", title: "Failed to disconnect" });
         } finally {
             setIsDeleting(null);
         }
     };
 
     return (
-        <>
-            <div className="space-y-4 -mx-4">
-                {/* SOS Button Section */}
-                <div className="px-4">
-                    <div className={cn(
-                        "rounded-2xl p-6 transition-all duration-300",
-                        isSosActive
-                            ? "bg-gradient-to-br from-amber-500 to-orange-600"
-                            : "bg-gradient-to-br from-red-500 to-rose-600"
-                    )}>
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
-                                <Shield className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h2 className="text-lg font-bold text-white">Emergency SOS</h2>
-                                <p className="text-white/80 text-xs">Alert security & contacts</p>
-                            </div>
-                        </div>
-
-                        <Button
-                            onClick={handleSosClick}
-                            className={cn(
-                                "w-full h-16 text-lg font-bold rounded-xl transition-all",
-                                isSosActive
-                                    ? "bg-white text-amber-600 hover:bg-gray-100"
-                                    : "bg-white/20 text-white hover:bg-white/30 border-2 border-white/50"
-                            )}
-                        >
-                            <AlertTriangle className="w-6 h-6 mr-2" />
-                            {isSosActive ? `CANCEL (${sosCountdown}s)` : "HOLD FOR SOS"}
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-3 px-4">
-                    <button
-                        onClick={handleShareTrip}
-                        className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm active:scale-95 transition-transform"
-                    >
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
-                            <Share2 className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-800 dark:text-white">Share Trip</span>
-                        <span className="text-xs text-gray-500">Live location</span>
-                    </button>
-
-                    <button
-                        onClick={() => toast({ title: "Coming Soon" })}
-                        className="flex flex-col items-center gap-2 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm active:scale-95 transition-transform"
-                    >
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
-                            <MapPin className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-sm font-medium text-gray-800 dark:text-white">Safe Zones</span>
-                        <span className="text-xs text-gray-500">Campus areas</span>
-                    </button>
-                </div>
-
-                {/* Emergency Contacts Section */}
-                <div className="px-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-gray-800 dark:text-white">Emergency Contacts</h3>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-indigo-600"
-                            onClick={() => setIsAddDialogOpen(true)}
-                        >
-                            <UserPlus className="w-4 h-4 mr-1" />
-                            Add
-                        </Button>
-                    </div>
-
-                    {isLoading ? (
-                        <div className="space-y-3">
-                            {[1, 2].map((i) => (
-                                <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse" />
-                            ))}
-                        </div>
-                    ) : emergencyContacts.length === 0 ? (
-                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center">
-                            <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-gray-500 text-sm">No emergency contacts</p>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="mt-3"
-                                onClick={() => setIsAddDialogOpen(true)}
-                            >
-                                <UserPlus className="w-4 h-4 mr-1" />
-                                Add Contact
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            {emergencyContacts.map((contact) => (
-                                <ContactCard
-                                    key={contact.id}
-                                    contact={contact}
-                                    onDelete={() => handleDeleteContact(contact.id)}
-                                />
-                            ))}
-                        </div>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* SOS Button Section */}
+            <div>
+                <div className={cn(
+                    "rounded-3xl p-8 transition-all duration-300 relative overflow-hidden border cursor-pointer",
+                    isSosActive
+                        ? "bg-rose-600 border-rose-500"
+                        : "bg-slate-900 border-slate-800"
+                )} onClick={handleSosClick}>
+                    {isSosActive && (
+                        <>
+                            <div className="absolute inset-0 bg-rose-500 animate-pulse" />
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-rose-400/30 rounded-full blur-3xl animate-ping" />
+                        </>
                     )}
-                </div>
 
-                {/* Safety Tips */}
-                <div className="px-4 pb-4">
-                    <h3 className="font-semibold text-gray-800 dark:text-white mb-3">Safety Tips</h3>
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl overflow-hidden">
-                        {[
-                            "Always verify the driver/vehicle before boarding",
-                            "Share your trip with family or friends",
-                            "Sit in the back seat when using cab services",
-                            "Trust your instincts - if something feels wrong, leave",
-                        ].map((tip, i) => (
-                            <div key={i} className="flex items-start gap-3 p-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                                <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <span className="text-xs font-bold text-green-600">{i + 1}</span>
-                                </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">{tip}</p>
-                            </div>
-                        ))}
+                    <div className="relative z-10 flex flex-col items-center text-center gap-4">
+                        <div className={cn(
+                            "w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-300",
+                            isSosActive ? "bg-white text-rose-600" : "bg-white/5 text-rose-500"
+                        )}>
+                            {isSosActive ? (
+                                <span className="text-4xl font-black">{sosCountdown}</span>
+                            ) : (
+                                <Siren className="w-10 h-10 animate-pulse" />
+                            )}
+                        </div>
+
+                        <div>
+                            <h2 className="text-xl font-bold text-white uppercase tracking-tight">
+                                {isSosActive ? "Requesting Help..." : "Get Help Now"}
+                            </h2>
+                            <p className="text-white/60 text-[10px] font-bold uppercase tracking-wider mt-1">
+                                {isSosActive ? "Tap to cancel" : "Tap for emergency help"}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-4">
+                <button
+                    onClick={handleShareTrip}
+                    className="flex flex-col items-center gap-3 p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 active:scale-95 transition-all group"
+                >
+                    <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center transition-transform">
+                        <Share2 className="w-6 h-6 text-indigo-500" />
+                    </div>
+                    <div className="text-center">
+                        <span className="block text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">Help Link</span>
+                        <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Share Location</span>
+                    </div>
+                </button>
+
+                <button
+                    onClick={() => toast({ title: "COMING SOON", className: "bg-slate-900 text-white font-bold" })}
+                    className="flex flex-col items-center gap-3 p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-white/5 active:scale-95 transition-all group"
+                >
+                    <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center transition-transform">
+                        <Radio className="w-6 h-6 text-emerald-500" />
+                    </div>
+                    <div className="text-center">
+                        <span className="block text-xs font-bold text-slate-900 dark:text-white uppercase tracking-tight">Safe Zones</span>
+                        <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Safe Areas</span>
+                    </div>
+                </button>
+            </div>
+
+            {/* Emergency Contacts Section */}
+            <div className="bg-slate-50 dark:bg-white/5 rounded-3xl p-6 border border-slate-100 dark:border-white/10">
+                <div className="flex items-center justify-between mb-5 px-1">
+                    <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                        <Users className="w-3.5 h-3.5 text-indigo-500" />
+                        Trusted People
+                    </h3>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-indigo-600 font-bold uppercase tracking-wider text-[9px] hover:bg-white dark:hover:bg-white/5 rounded-lg h-8"
+                        onClick={() => setIsAddDialogOpen(true)}
+                    >
+                        <UserPlus className="w-3 h-3 mr-1.5" />
+                        Add Person
+                    </Button>
+                </div>
+
+                {isLoading ? (
+                    <div className="space-y-4">
+                        {[1, 2].map((i) => (
+                            <div key={i} className="h-20 bg-white dark:bg-white/5 rounded-[1.5rem] animate-pulse" />
+                        ))}
+                    </div>
+                ) : emergencyContacts.length === 0 ? (
+                    <div className="bg-white dark:bg-slate-950 rounded-2xl p-8 text-center border-2 border-dashed border-slate-200 dark:border-white/5">
+                        <Shield className="w-10 h-10 text-slate-200 dark:text-slate-800 mx-auto mb-3" />
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">No Trusted People</p>
+                        <p className="text-[10px] text-slate-500 mb-4">Add people you trust for safety.</p>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg font-bold uppercase tracking-wider text-[9px] border-slate-200 dark:border-white/10"
+                            onClick={() => setIsAddDialogOpen(true)}
+                        >
+                            <UserPlus className="w-3 h-3 mr-2" />
+                            Add
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {emergencyContacts.map((contact) => (
+                            <ContactCard
+                                key={contact.id}
+                                contact={contact}
+                                onDelete={() => handleDeleteContact(contact.id)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Safety Tips */}
+            <div className="px-6 pb-6">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <Shield className="w-3 h-3" />
+                    Safety Rules
+                </h3>
+                <div className="space-y-4">
+                    {[
+                        "Check driver and car before you get in",
+                        "Keep your location link on while traveling",
+                        "Sit in the back seat",
+                        "Stop immediately if anything feels wrong",
+                    ].map((tip, i) => (
+                        <div key={i} className="flex items-start gap-4 group">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                                <span className="text-[10px] font-black text-indigo-600 group-hover:text-white">{i + 1}</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-300 leading-relaxed">{tip}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <AddEmergencyContactDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} />
-        </>
+        </div>
     );
 }

@@ -19,8 +19,6 @@ import {
     TrendingDown,
     Clock,
     Users,
-    Calendar,
-    MapPin,
     BarChart3,
     Info,
     ThumbsUp,

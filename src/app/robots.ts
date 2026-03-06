@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-    const baseUrl = 'https://commute-companion.vercel.app'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://commute-companion.vercel.app'
 
     return {
         rules: [

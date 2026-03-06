@@ -11,7 +11,7 @@ import { getBusStopsForRoute } from "@/lib/bus-stops";
 import { Button } from "@/components/ui/button";
 
 interface LiveTrackingProps {
-    onVehicleSelect: (vehicle: Vehicle) => void;
+    onVehicleSelect: (vehicle: Vehicle | null) => void;
     selectedVehicle: Vehicle | null;
 }
 
@@ -198,7 +198,7 @@ export default function LiveTracking({ onVehicleSelect, selectedVehicle }: LiveT
                         {selectedVehicle && (
                             <InfoWindow
                                 position={{ lat: selectedVehicle.position.latitude, lng: selectedVehicle.position.longitude }}
-                                onCloseClick={() => onVehicleSelect(null as any)}
+                                onCloseClick={() => onVehicleSelect(null)}
                                 pixelOffset={[0, -40]}
                             >
                                 <div className="p-1">

@@ -3,10 +3,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
   
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // Users can read and write their own data
     match /users/{userId} {
-      // Allow read if authenticated and is the owner
-      allow read: if request.auth != null && request.auth.uid == userId;
+      // Allow read if authenticated and is the owner, or if admin
+      allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
       // Allow create for any authenticated user (for first-time sign-up)
       allow create: if request.auth != null && request.auth.uid == userId;
       // Allow update/delete only for the owner
@@ -18,48 +22,68 @@ service cloud.firestore {
       }
     }
     
+    // SOS Alerts - Only managed by server actions, but readable by any logged-in user
+    match /sos_alerts/{alertId} {
+      allow read: if request.auth != null;
+      allow create, update: if false; // Only Admin SDK (server actions)
+    }
+
     // Allow logged-in users to read vehicle data
     match /vehicles/{vehicleId} {
       allow read: if request.auth != null;
     }
     
-    // Allow logged-in users to submit reports
+    // Allow logged-in users to submit reports, admins can read
     match /vehicle_reports/{reportId} {
+      allow read: if isAdmin();
       allow create: if request.auth != null;
     }
 
-    // Allow logged-in users to read and create redeemed vouchers for themselves
+    // Vouchers - Read-only for users. Creation/updates handled via server actions.
     match /redeemed_vouchers/{voucherId} {
-        allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-        allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+        allow read: if (request.auth != null && request.auth.uid == (resource != null ? resource.data.userId : request.auth.uid)) || isAdmin();
+        allow create, update, delete: if false; // Only Admin SDK
     }
 
-    // Allow logged-in users to read and create rides
+    // Rides and Ride Requests
     match /rides/{rideId} {
-        allow read, create: if request.auth != null;
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update, delete: if request.auth != null && request.auth.uid == resource.data.driverId;
         
-        // Ride messages subcollection - anyone in the ride can read/write
         match /messages/{messageId} {
             allow read: if request.auth != null;
             allow create: if request.auth != null
-                && request.resource.data.senderId == request.auth.uid
-                && request.resource.data.text is string
-                && request.resource.data.text.size() > 0
-                && request.resource.data.text.size() <= 1000;
+                && request.resource.data.senderId == request.auth.uid;
         }
     }
 
-    // Ride requests can be created by any authenticated user.
-    // They can only be read by the driver or the requester.
     match /ride_requests/{requestId} {
         allow create: if request.auth != null;
-        allow read, update: if request.auth != null && (request.auth.uid == resource.data.driverId || request.auth.uid == resource.data.requesterId);
+        allow read, update: if request.auth != null && (request.auth.uid == (resource != null ? resource.data.driverId : "") || request.auth.uid == (resource != null ? resource.data.requesterId : ""));
+        allow delete: if request.auth != null && (request.auth.uid == (resource != null ? resource.data.requesterId : ""));
+    }
+
+    // Auth Audit Logs - Write-only via server actions
+    match /auth_audit_logs/{logId} {
+      allow read, write: if false; 
     }
     
+    // Allow logged-in users to read stop data
+    match /stops/{stopId} {
+      allow read: if request.auth != null;
+    }
+
+    // Transactions - Read-only for users to see their own history. 
+    // Only Admin SDK can create/update. Admins can read all.
+    match /transactions/{transactionId} {
+        allow read: if (request.auth != null && request.auth.uid == resource.data.userId) || isAdmin();
+        allow create, update, delete: if false;
+    }
+
     // FCM tokens - users can only manage their own tokens
     match /fcm_tokens/{userId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
-
