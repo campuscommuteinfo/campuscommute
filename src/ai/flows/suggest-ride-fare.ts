@@ -106,7 +106,30 @@ const suggestRideFareFlow = ai.defineFlow(
         outputSchema: SuggestRideFareOutputSchema,
     },
     async input => {
-        const { output } = await prompt(input);
-        return output!;
+        try {
+            const { output } = await prompt(input);
+            return output!;
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            if (message.includes('429') || message.includes('quota') || message.includes('Too Many Requests')) {
+                console.warn('[suggestRideFare] Gemini quota exceeded, returning fallback fare.');
+                const baseFare = input.distance ? Math.round(input.distance * 9) : 40;
+                const hour = parseInt(input.time);
+                const isPeak = (hour >= 8 && hour <= 10) || (hour >= 16 && hour <= 18);
+                const peakMultiplier = isPeak ? 1.3 : 1.0;
+                const eventAdj = input.academicEvent ? 15 : 0;
+                const recurringDisc = input.isRecurring ? 8 : 0;
+                const suggested = Math.round(baseFare * peakMultiplier + eventAdj - recurringDisc);
+                return {
+                    suggestedFare: suggested,
+                    fareRange: { min: Math.round(suggested * 0.8), max: Math.round(suggested * 1.2) },
+                    breakdown: { baseFare, peakMultiplier, eventAdjustment: eventAdj, recurringDiscount: recurringDisc },
+                    explanation: `Estimated fare based on typical rates (AI service temporarily unavailable). Base ₹${baseFare}${isPeak ? ' + peak surcharge' : ''}.`,
+                    competitiveAnalysis: 'Ride-sharing is typically 30-50% cheaper than solo auto/cab rides for the same route.',
+                    tip: 'Offer a recurring ride to build a loyal rider base and earn consistent income.',
+                };
+            }
+            throw err;
+        }
     }
 );

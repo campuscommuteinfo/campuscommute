@@ -46,7 +46,18 @@ const explainBusDelayFlow = ai.defineFlow(
     outputSchema: ExplainBusDelayOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      const {output} = await prompt(input);
+      return output!;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('429') || message.includes('quota') || message.includes('Too Many Requests')) {
+        console.warn('[explainBusDelay] Gemini quota exceeded, returning fallback explanation.');
+        return {
+          explanation: `Bus delays on route ${input.route} at ${input.stop} are common during peak hours (8-10 AM, 4-6 PM) due to traffic congestion, class schedules, and high passenger volume. AI-powered analysis is temporarily unavailable — please check back later for detailed insights.`,
+        };
+      }
+      throw err;
+    }
   }
 );

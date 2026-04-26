@@ -171,7 +171,7 @@ export default function AdminLayout({
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-200">
+        <div className="dark min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-200">
             {/* Top Navigation Bar - Horizontal Glassmorphism */}
             <nav className="sticky top-0 z-50 border-b border-white/10 bg-slate-900/80 backdrop-blur-xl">
                 <div className="px-4 lg:px-8">

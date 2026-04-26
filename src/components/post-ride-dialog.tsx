@@ -40,9 +40,9 @@ interface PostRideDialogProps {
 const rideSchema = z.object({
   from: z.string().min(2, "Please enter a starting location."),
   to: z.string().min(2, "Please enter a destination."),
-  rideDate: z.date({ required_error: "Please select a date and time." }),
-  seats: z.coerce.number().min(1, "Must offer at least one seat."),
-  price: z.coerce.number().min(0, "Price cannot be negative."),
+  rideDate: z.date({ error: "Please select a date and time." }),
+  seats: z.number().min(1, "Must offer at least one seat."),
+  price: z.number().min(0, "Price cannot be negative."),
 });
 
 export default function PostRideDialog({ open, onOpenChange }: PostRideDialogProps) {

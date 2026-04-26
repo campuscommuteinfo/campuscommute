@@ -88,7 +88,29 @@ const predictBusCrowdLevelsFlow = ai.defineFlow(
     outputSchema: PredictBusCrowdLevelsOutputSchema,
   },
   async input => {
-    const { output } = await prompt(input);
-    return output!;
+    try {
+      const { output } = await prompt(input);
+      return output!;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('429') || message.includes('quota') || message.includes('Too Many Requests')) {
+        console.warn('[predictBusCrowdLevels] Gemini quota exceeded, returning fallback prediction.');
+        const hour = new Date().getHours();
+        const isPeak = (hour >= 8 && hour <= 10) || (hour >= 16 && hour <= 18);
+        return {
+          crowdLevel: isPeak ? 'Yellow' as const : 'Green' as const,
+          confidence: 55,
+          estimatedWaitTime: isPeak ? 12 : 6,
+          explanation: `Fallback prediction based on typical ${isPeak ? 'peak hour' : 'off-peak'} patterns (AI service temporarily unavailable).`,
+          factors: isPeak
+            ? ['Peak commute hours', 'Class schedule overlap', 'Historical demand']
+            : ['Off-peak hours', 'Lower demand period', 'Regular service frequency'],
+          recommendation: isPeak
+            ? 'Consider leaving 10 minutes early to avoid crowds.'
+            : 'Good time to travel — buses should have plenty of seats.',
+        };
+      }
+      throw err;
+    }
   }
 );
